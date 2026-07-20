@@ -237,6 +237,8 @@ def convert_to_user_format(
     )
 
     data = result.get("data", {})
+    has_positions = False
+
     if data and "chunks" in data:
         formatted_chunks = data["chunks"]
         has_positions = False
@@ -260,13 +262,13 @@ def convert_to_user_format(
                 pos = orig_c.get("positions")
                 ref_id = orig_c.get("reference_id")
                 orig_cid = orig_c.get("chunk_id") or orig_c.get("id") or orig_c.get("_id")
+                from lightrag.utils import logger
+                logger.debug(f"[edw-rag] convert_to_user_format chunk {i}: "
+                            f"cid={cid!r}, orig_cid={orig_cid!r}, "
+                            f"has_positions={pos is not None}, ref_id={ref_id!r}")
                 if pos:
                     formatted_c["positions"] = pos
                     has_positions = True
-                if ref_id and not formatted_c.get("reference_id"):
-                    formatted_c["reference_id"] = ref_id
-                if orig_cid and not formatted_c.get("chunk_id"):
-                    formatted_c["chunk_id"] = orig_cid
         if has_positions:
             highlights = build_citation_highlights(
                 chunks=formatted_chunks,
@@ -274,5 +276,28 @@ def convert_to_user_format(
             )
             if highlights.get("sources"):
                 data["citation_highlights"] = highlights
+                # Also build the citations map (chunk text + page evidence)
+                from .sidecar import build_citations_map
 
+                citations = build_citations_map(
+                    chunks=formatted_chunks,
+                    references=data.get("references", []),
+                    citation_highlights=highlights,
+                )
+                if citations:
+                    data["citations"] = citations
+        else:
+            # Even without positions, try building citations from chunk text alone
+            from .sidecar import build_citations_map
+
+            citations = build_citations_map(
+                chunks=formatted_chunks,
+                references=data.get("references", []),
+            )
+            if citations:
+                data["citations"] = citations
+    from lightrag.utils import logger
+    logger.debug(f"[edw-rag] convert_to_user_format done: has_positions={has_positions}, "
+                 f"citations_in_data={'citations' in data}, "
+                 f"highlights_in_data={'citation_highlights' in data}")
     return result

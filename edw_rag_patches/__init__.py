@@ -97,14 +97,96 @@ def apply_edw_rag_patches() -> None:
     _orig_aql = ll.LightRAG.aquery_llm
 
     async def _aql_wrapper(self, query: str, param=None, **kwargs):
+        from lightrag.utils import logger
         result = await _orig_aql(self, query, param=param, **kwargs)
-        data = result.get("data", {})
+        data = result.get("data", {}) if isinstance(result, dict) else {}
+        has_ch = isinstance(data, dict) and "citation_highlights" in data
+        logger.debug(f"[edw-rag] _aql_wrapper: result_keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}, "
+                     f"data_has_highlights={has_ch}")
         if isinstance(data, dict) and "citation_highlights" in data:
-            result["citation_highlights"] = data["citation_highlights"]
             _citation_cv.set(data["citation_highlights"])
         return result
-
     ll.LightRAG.aquery_llm = _aql_wrapper
+
+    # -- 7. Patch prompts for inline citation markers ----------------------
+    import lightrag.prompt as lp
+
+    for key in ("rag_response", "naive_rag_response"):
+        _save(f"prompt_{key}", lp.PROMPTS, key)
+        tmpl = lp.PROMPTS[key]
+
+        # Change instructions to use inline markers instead of footer section
+        tmpl = tmpl.replace(
+            "- Generate a references section at the end of the response.",
+            "- Use inline citation markers like [^N] immediately after the facts they support."
+        )
+        tmpl = tmpl.replace(
+            "Generate a **References** section at the end of the response.",
+            "Use inline citation markers like [^N] immediately after the facts they support."
+        )
+
+        old_ref = (
+            "4. References Section Format:\n"
+            "  - The References section should be under heading: `### References`\n"
+            '  - Reference list entries should adhere to the format: `* [n] Document Title`. '
+            "Do not include a caret (`^`) after opening square bracket (`[`).\n"
+            "  - The Document Title in the citation must retain its original language.\n"
+            "  - Output each citation on an individual line\n"
+            "  - Provide maximum of 5 most relevant citations.\n"
+            "  - Do not generate footnotes section or any comment, summary, or explanation after the references.\n"
+        )
+        new_ref = (
+            "4. Inline Citations Format:\n"
+            '  - Use [^N] markers inline in your response, right after the fact they support, '
+            'e.g. "Amazon expanded EV charging in India[^1]."\n'
+            "  - When citing multiple sources at once, use adjacent markers: [^1][^2]\n"
+            "  - The reference_id in the marker must match an entry in the Reference Document List.\n"
+            "  - Do NOT generate a separate references section at the end.\n"
+        )
+        if old_ref in tmpl:
+            tmpl = tmpl.replace(old_ref, new_ref)
+
+        old_ex = (
+            "5. Reference Section Example:\n"
+            "```\n"
+            "### References\n"
+            "\n"
+            "- [1] Document Title One\n"
+            "- [2] Document Title Two\n"
+            "- [3] Document Title Three\n"
+            "```\n"
+        )
+        new_ex = (
+            "5. Inline Citation Example:\n"
+            "```\n"
+            "Amazon expanded EV charging in India[^1] through The Climate Pledge[^1][^2]. "
+            "The project aims for 100% renewable energy by 2030[^1].\n"
+            "```\n"
+        )
+        if old_ex in tmpl:
+            tmpl = tmpl.replace(old_ex, new_ex)
+
+        lp.PROMPTS[key] = tmpl
+
+    # -- 9. Patch reference list to use [^N] instead of [N] ----------------
+    _save("_build_context_str", lo, "_build_context_str")
+    _orig_build_context_str = lo._build_context_str
+
+    async def _build_context_str_wrapper(*args, **kwargs):
+
+        result = await _orig_build_context_str(*args, **kwargs)
+        if isinstance(result, tuple) and len(result) >= 1:
+            ctx = result[0]
+            import re
+            # Change [N] → [^N] in reference list entries (at line start)
+            ctx = re.sub(r'(?m)^\[(\d+)\] ', r'[^\1] ', ctx)
+            # Also change `reference_id` labels in chunk JSON to include ^
+            # e.g. "reference_id": "1" → "reference_id": "1" (leave as-is, but
+            # the [^N] in the ref list is the key visual cue for the LLM)
+            result = (ctx,) + result[1:]
+        return result
+
+    lo._build_context_str = _build_context_str_wrapper
 
 
 def revert_edw_rag_patches() -> None:
@@ -144,7 +226,9 @@ def revert_edw_rag_patches() -> None:
 def patch_app_routes(app: Any) -> None:
     """Patch FastAPI app routes to include citation_highlights in /query."""
     import lightrag.api.routers.query_routes as qr
+    from lightrag.utils import logger
 
+    patched = 0
     for route in app.routes:
         if not hasattr(route, "methods") or not hasattr(route, "endpoint"):
             continue
@@ -154,6 +238,9 @@ def patch_app_routes(app: Any) -> None:
             if hasattr(route, "response_model") and route.response_model is not None:
                 route.response_model = qr.QueryResponse
             _patch_query_endpoint(route)
+            patched += 1
+            logger.debug(f"[edw-rag] patched route: {path}")
+    logger.debug(f"[edw-rag] patch_app_routes: total routes={len(app.routes)}, patched={patched}")
 
 # ===================================================================
 # Internal helpers
@@ -166,13 +253,26 @@ def _build_chunks_dict_patched(
 ) -> dict[str, dict]:
     if blocks_path is None:
         blocks_path = _blocks_path_cv.get()
+    from lightrag.utils import logger
+    logger.debug(f"[edw-rag] _build_chunks_dict_patched: blocks_path={blocks_path!r}, "
+                 f"chunks_in_result={len(chunking_result) if chunking_result else 0}")
     chunks = _orig_build_chunks_dict(
         chunking_result, doc_id=doc_id, file_path=file_path
     )
-    if not blocks_path or not chunks:
+    if not blocks_path:
+        logger.debug(f"[edw-rag] blocks_path empty or None — skipping position enrichment")
+        return chunks
+    if not chunks:
+        logger.debug(f"[edw-rag] no chunks produced — skipping position enrichment")
         return chunks
     from .sidecar import enrich_chunks_with_positions
+    from .sidecar import _load_blocks_jsonl
+    blocks = _load_blocks_jsonl(blocks_path)
+    logger.debug(f"[edw-rag] blocks loaded: {len(blocks) if blocks else 0} from {blocks_path}")
     enrich_chunks_with_positions(chunks, chunking_result, blocks_path)
+    # Check if any chunks got positions
+    pos_count = sum(1 for c in chunks.values() if c.get("positions"))
+    logger.debug(f"[edw-rag] chunks with positions after enrichment: {pos_count}/{len(chunks)}")
     return chunks
 
 
@@ -183,6 +283,8 @@ def _patch_pipeline(lpipe_module: Any) -> None:
 
     async def _wrapper(self, *, doc_id, status_doc, parsed_data, ctx):
         bp = str(parsed_data.get("blocks_path") or "").strip()
+        from lightrag.utils import logger
+        logger.debug(f"[edw-rag] pipeline _wrapper: blocks_path={bp!r}")
         _blocks_path_cv.set(bp if bp else None)
         try:
             return await orig(self, doc_id=doc_id, status_doc=status_doc,
@@ -228,12 +330,13 @@ def _patch_request_model(qr_module: Any) -> None:
 
 def _patch_response_model(qr_module: Any) -> None:
     from pydantic import Field
+    from edw_rag_patches import _citation_cv
     _save("QueryResponse", qr_module, "QueryResponse")
     Base = qr_module.QueryResponse
 
     class _EDWResponse(Base):  # type: ignore[valid-type,misc]
         citation_highlights: dict | None = Field(
-            default=None,
+            default_factory=lambda: _citation_cv.get(),
             description="Per-source chunk-level bbox/page highlights.")
 
     qr_module.QueryResponse = _EDWResponse
@@ -249,6 +352,9 @@ def _patch_query_endpoint(route: Any) -> None:
     async def _wrapped(request):
         response = await original_endpoint(request)
         highlights = _citation_cv.get()
+        from lightrag.utils import logger
+        logger.debug(f"[edw-rag] endpoint wrapper: highlights={'found' if highlights else 'None'}, "
+                     f"response_has_attr={hasattr(response, 'citation_highlights')}")
         if highlights and hasattr(response, "citation_highlights"):
             response.citation_highlights = highlights
             _citation_cv.set(None)

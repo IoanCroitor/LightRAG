@@ -307,6 +307,19 @@
     .highlight:focus-visible, .citation:focus-visible, .tool-button:focus-visible,
     .btn:focus-visible, .tab:focus-visible { outline: 3px solid #83b1ff; outline-offset: 2px; }
     .evidence-hint { color: var(--muted); font-size: 12px; margin: -8px 0 15px; }
+.chunk-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  max-height: 120px;
+  overflow-y: auto;
+  word-break: break-word;
+}
     .empty {
       min-height: 300px;
       display: grid;
@@ -553,6 +566,9 @@ function highlights() {
 function sources() {
   return highlights().sources || {};
 }
+function citations() {
+  return data().citations || state.json?.citations || {};
+}
 function response() {
   return (
     data().displayContent ||
@@ -655,82 +671,108 @@ function renderResponse(c) {
   c.innerHTML = html;
 }
 
+function renderRefList(rl) {
+  return (
+    '<div class="section" style="border:0;margin:0;padding:0">' +
+    '<h2>Sources <span style="color:var(--muted);font-weight:400">' +
+    rl.length +
+    ' cited</span></h2>' +
+    rl
+      .map((r) => {
+        const id = String(r.reference_id ?? r.id ?? "");
+        return (
+          '<div class="ref" data-ref="' +
+          esc(id) +
+          '" data-searchable="' +
+          esc((r.file_path || r.title || "").toLowerCase()) +
+          '"><div class="ref-num">' +
+          esc(id || "?") +
+          '</div><div><div class="ref-title">' +
+          esc(r.file_path || r.title || "Untitled source") +
+          '</div><div class="ref-meta">' +
+          (r.chunk_id || "Attach a PDF with highlights to see evidence") +
+          "</div></div></div>"
+        );
+      })
+      .join("") +
+    "</div>"
+  );
+}
+
 function renderSources(c) {
-  const keys = Object.keys(sources());
+  const allKeys = Object.keys(sources());
+
+  // When a specific citation is active, only show its source
+  const keys = state.active && allKeys.length
+    ? allKeys.filter(fp => {
+        const s = sources()[fp];
+        return (s.chunks || []).some(ch => ch.reference_id === state.active);
+      })
+    : allKeys;
 
   if (!keys.length) {
     const rl = refs();
     if (rl.length) {
-      c.innerHTML =
-        '<div class="section" style="border:0;margin:0;padding:0"><h2>Sources <span style="color:var(--muted);font-weight:400">' +
-        rl.length +
-        ' cited</span></h2>' +
-        rl
-          .map((r) => {
-            const id = String(r.reference_id ?? r.id ?? "");
-            return (
-              '<div class="ref" data-ref="' +
-              esc(id) +
-              '" data-searchable="' +
-              esc((r.file_path || r.title || "").toLowerCase()) +
-              '"' +
-              '"><div class="ref-num">' +
-              esc(id || "?") +
-              '</div><div><div class="ref-title">' +
-              esc(r.file_path || r.title || "Untitled source") +
-              '</div><div class="ref-meta">' +
-              (r.chunk_id ||
-                "Attach a PDF with highlights to see evidence") +
-              "</div></div></div>"
-            );
-          })
-          .join("") +
-        "</div>";
+      if (state.active) {
+        // Active citation but no matching source — render refs filtered
+        const filtered = rl.filter(r => String(r.reference_id ?? r.id ?? "") === state.active);
+        c.innerHTML = renderRefList(filtered.length ? filtered : rl);
+      } else {
+        c.innerHTML = renderRefList(rl);
+      }
+      c.innerHTML +=
+        '<div class="empty" style="min-height:160px;padding:20px"><div><strong>No citation overlays in this response</strong>' +
+        'The response includes source citations, but no page/bounding-box data. ' +
+        'Run the query with <code>include_citation_highlights: true</code> and load that JSON response.</div></div>';
       return;
     }
     c.innerHTML =
-      '<div class="empty"><div><strong>No citation highlights</strong>This response contains no structured bounding-box evidence.</div></div>';
+      '<div class="empty"><div><strong>No citation highlights</strong>This response contains no structured bounding-box evidence. ' +
+      'Run the query with <code>include_citation_highlights: true</code> to include overlay coordinates.</div></div>';
     return;
   }
-
   c.innerHTML = '<div class="evidence-hint">Select a highlight to jump to its exact region in the document. Use <b>‹</b> and <b>›</b> above the preview to step through evidence.</div>' + keys
     .map((fp) => {
       const s = sources()[fp];
       const chunks = s.chunks || [];
       return (
-        '<div class="source" data-searchable="' + esc(fp.toLowerCase()) + '"><div class="source-head"><div class="source-name">' +
+        '<div class="source"' +
+        ' data-searchable="' + esc(fp.toLowerCase()) + '">' +
+        '<div class="source-head"><div class="source-name">' +
         esc(fp) +
         '</div><div class="source-actions"><span class="source-dot"></span><div class="count">' +
         chunks.length +
         " chunk" +
         (chunks.length === 1 ? "" : "s") +
-        '</div></div></div>' +
-        chunks
-          .map((ch) => {
+        '</div></div>' +
+        chunks.map((ch) => {
             const highlights = ch.highlights || [];
+            const cid = ch.chunk_id || "";
+            let chunkText = "";
+            const citRef = citations()[ch.reference_id || ""];
+            if (citRef) {
+              const ev = citRef.evidence?.find(e => e.chunk_id === cid);
+              if (ev) chunkText = ev.text;
+            }
             return (
-              '<div class="chunk"><div class="chunk-id">' +
-              esc(ch.chunk_id || "Chunk") +
-              '</div><div class="highlight-list">' +
+              '<div class="chunk"' +
+              (chunkText ? ' style="cursor:pointer"' : "") +
+              ' data-chunk-id="' + esc(cid) + '"' +
+              ' data-ref="' + esc(ch.reference_id || "") + '">' +
+              (chunkText
+                ? '<div class="chunk-text">' + esc(chunkText) + "</div>"
+                : "") +
+              '<div class="chunk-id">' + esc(cid || "Chunk") + '</div>' +
+              '<div class="highlight-list">' +
               (highlights.length
-                ? highlights
-                    .map((h, i) => {
+                ? highlights.map((h) => {
                       const b = h.bbox || {};
                       return (
-                        '<button title="' + esc(evidenceLabel({ ...h, file: fp })) + '" class="highlight" data-highlight="' +
-                        esc(
-                          JSON.stringify({
-                            file: fp,
-                            page: h.page || 1,
-                            bbox: b,
-                          })
-                        ) +
-                        '">Page ' +
-                        (h.page || 1) +
-                        " · " +
-                        Math.round(b.r ?? 0) +
-                        "×" +
-                        Math.round(b.b ?? 0) +
+                        '<button title="' + esc(evidenceLabel({ ...h, file: fp })) +
+                        '" class="highlight" data-highlight="' +
+                        esc(JSON.stringify({file: fp, page: h.page || 1, bbox: b})) +
+                        '">Page ' + (h.page || 1) + " · " +
+                        Math.round(b.r ?? 0) + "×" + Math.round(b.b ?? 0) +
                         "</button>"
                       );
                     })
@@ -814,6 +856,13 @@ async function renderPdf(targetPage) {
 
   const list = $("#pages");
   list.innerHTML = "";
+
+  if (!hs.length && !state.pdf) {
+    list.innerHTML =
+      '<div class="empty" style="color:#aeb9ca"><div><strong style="color:#fff">No citation overlays</strong>' +
+      'Load a response containing <code>citation_highlights</code>, then attach its PDF.</div></div>';
+    return;
+  }
 
   for (const n of pageNums) {
     // Page dimensions

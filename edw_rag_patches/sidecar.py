@@ -456,3 +456,111 @@ def build_citation_highlights(
         "version": 1,
         "sources": sources,
     }
+
+
+
+def build_citations_map(
+    chunks: list[dict[str, Any]],
+    references: list[dict[str, Any]],
+    citation_highlights: dict[str, Any] | None = None,
+) -> dict[str, dict]:
+    """Build a ``citations`` map for the query response.
+
+    Groups chunk text + page evidence by ``reference_id`` so the frontend
+    can show inline evidence cards when the user clicks ``[^N]``.
+
+    Output shape::
+
+        {
+          "1": {
+            "reference_id": "1",
+            "file_path": "2024-amazon-sustainability-report_p16.pdf",
+            "evidence": [
+              {
+                "chunk_id": "doc-xxx-chunk-000",
+                "text": "Full chunk text…",
+                "page": 1,
+                "bbox": {"l": 70, "t": 125, "r": 490, "b": 205},
+              }
+            ]
+          }
+        }
+
+    Parameters
+    ----------
+    chunks:
+        The ``data["chunks"]`` list after ``convert_to_user_format``.
+        Each entry should have ``reference_id``, ``chunk_id``, ``content``,
+        and optionally ``file_path``.
+    references:
+        The ``data["references"]`` list used to key the output.
+    citation_highlights:
+        Optional pre-built ``citation_highlights`` dict.  When given, the
+        page + bbox for each chunk is resolved from its highlights.
+
+    Returns
+    -------
+    dict
+        ``{reference_id: {reference_id, file_path, evidence: [...]}}``.
+    """
+    # Pre-index citation_highlights by chunk_id for fast lookup
+    ch_by_chunk: dict[str, list[dict]] = {}
+    if citation_highlights and isinstance(citation_highlights, dict):
+        for src in (citation_highlights.get("sources") or {}).values():
+            for ck in (src.get("chunks") or []):
+                cid = ck.get("chunk_id", "")
+                if cid:
+                    ch_by_chunk[cid] = ck.get("highlights") or []
+
+    # Build evidence lists per reference_id
+    by_ref: dict[str, list[dict]] = {}
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            continue
+        rid = chunk.get("reference_id")
+        if not rid:
+            continue
+        text = chunk.get("content") or chunk.get("text") or ""
+        if not text.strip():
+            continue  # skip empty chunks
+
+        cid = chunk.get("chunk_id", "")
+        highlights = ch_by_chunk.get(cid, [])
+
+        # Collect unique (page, bbox) pairs from highlights
+        seen: set[tuple] = set()
+        pages_bboxes: list[dict] = []
+        for hl in highlights:
+            page = hl.get("page", 1)
+            bbox = hl.get("bbox") or {}
+            key = (page, json.dumps(bbox, sort_keys=True))
+            if key not in seen:
+                seen.add(key)
+                pages_bboxes.append({"page": page, "bbox": bbox})
+
+        evidence = {
+            "chunk_id": cid,
+            "text": text,
+            "pages": pages_bboxes,
+        }
+        by_ref.setdefault(str(rid), []).append(evidence)
+
+    # Build final map keyed on reference_id
+    ref_map: dict[str, str] = {}
+    for ref in references:
+        if isinstance(ref, dict):
+            rid = ref.get("reference_id", "")
+            fp = ref.get("file_path", "")
+            if rid:
+                ref_map[str(rid)] = fp
+
+    citations: dict[str, dict] = {}
+    for rid, evs in by_ref.items():
+        fp = ref_map.get(rid, "")
+        citations[rid] = {
+            "reference_id": rid,
+            "file_path": fp,
+            "evidence": evs,
+        }
+
+    return citations

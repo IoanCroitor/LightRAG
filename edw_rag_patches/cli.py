@@ -89,11 +89,16 @@ def main() -> None:
     _orig_create_app = ls.create_app
 
     def _patched_create_app(args):
+        import sys as _sys
+        _sys.stderr.write("[edw-rag-debug] _patched_create_app CALLED\n")
+        _sys.stderr.flush()
         app = _orig_create_app(args)
         from edw_rag_patches import patch_app_routes
-
+        _sys.stderr.write("[edw-rag-debug] patch_app_routes about to run\n")
+        _sys.stderr.flush()
         patch_app_routes(app)
-        print("[edw-rag] Route patches applied", flush=True)
+        _sys.stderr.write("[edw-rag-debug] patch_app_routes done\n")
+        _sys.stderr.flush()
         return app
 
     ls.create_app = _patched_create_app

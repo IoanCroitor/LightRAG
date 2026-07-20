@@ -1,0 +1,363 @@
+# EDW-RAG Patches -- Chunk-Level Citation Highlights for LightRAG
+
+We monkey-patch because we need the patches to apply transparently - the server, the CLI, the WebUI, and the SDK all create LightRAG() instances, and we want our logic in every path without rewriting any of those call sites.
+
+---
+
+## The Problem
+
+LightRAG returns **document-level** citations only -- a list of file paths with reference IDs:
+
+```json
+"references": [{"reference_id": "1", "file_path": "/doc/ai.pdf"}]
+```
+
+That tells you *which document* the answer came from, but not *where* in that
+document. For a PDF with hundreds of pages, that's not actionable.
+
+## The Solution
+
+These patches store **bounding-box positions** (page number + `[l, t, r, b]`
+coordinates) for every chunk at ingestion time, then expose them as a
+structured **citation_highlights** sidecar in query responses:
+
+```json
+{
+  "version": 1,
+  "sources": {
+    "/doc/ai.pdf": {
+      "file_path": "/doc/ai.pdf",
+      "reference_id": "1",
+      "chunks": [
+        {
+          "chunk_id": "chunk-abc123",
+          "reference_id": "1",
+          "highlights": [
+            {"page": 1, "bbox": {"l": 72, "t": 200, "r": 523, "b": 215}},
+            {"page": 1, "bbox": {"l": 72, "t": 215, "r": 500, "b": 230}}
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+A custom PDF viewer receives this + the original PDF, and highlights every
+`bbox` on its `page` -- independent of how the LLM rendered the answer into
+text.
+
+---
+
+## Data Flow
+
+```mermaid
+flowchart LR
+    PDF -->|Docling| PAR[.parsed/blocks.jsonl]
+    PAR -->|enrich_chunks_with_positions| STORE[chunks_vdb + text_chunks]
+    STORE -->|query| CTX[_get_vector_context]
+    CTX -->|carries positions| MERGE[_merge_all_chunks]
+    MERGE -->|preserves positions| FMT[convert_to_user_format]
+    FMT -->|builds| SIDECAR[citation_highlights]
+    SIDECAR -->|/query/data| API[JSON Response]
+```
+
+| Stage | What happens | Where |
+|-------|-------------|-------|
+| **Parse** | Docling produces `.parsed/stem.blocks.jsonl` with per-item `prov[]` arrays (page, bbox, charspan, origin) | `lightrag/parser/external/docling/` |
+| **Chunk** | P-chunker produces `sidecar.refs` block IDs; F/R/V produce `_source_span` char offsets | `lightrag/chunker/` |
+| **Enrich** | `enrich_chunks_with_positions()` maps each chunk back to block positions from `blocks.jsonl` | `edw_rag_patches/sidecar.py` |
+| **Store** | Positions are stored in VDB meta alongside chunk content -- no second lookup | `edw_rag_patches/__init__.py` |
+| **Retrieve** | `get_vector_context()` extracts `positions` from VDB results | `edw_rag_patches/query_chain.py` |
+| **Merge** | `merge_all_chunks()` carries `positions` through round-robin dedup | `edw_rag_patches/query_chain.py` |
+| **Format** | `convert_to_user_format()` builds the `citation_highlights` sidecar | `edw_rag_patches/query_chain.py` |
+| **API** | `/query/data` returns it inside `data["citation_highlights"]` | Built-in |
+
+---
+
+## Architecture
+
+### Patch strategy: monkey-patching, not forking
+
+```
+edw_rag_patches/
+├── __init__.py        # apply/revert logic + all 8 monkey-patches
+├── sidecar.py         # chunk→bbox mapping + sidecar builder
+├── query_chain.py     # query pipeline patches
+├── cli.py             # entrypoint: edw-rag-server
+└── gunicorn.py        # entrypoint: edw-rag-gunicorn
+```
+
+Every patch is **revertable** via `revert_edw_rag_patches()`. On upgrade:
+
+```bash
+# 1. Update LightRAG
+uv sync --extra api
+
+# 2. Run tests -- 1700+ tests check patch compatibility
+uv run pytest tests/chunker/ tests/sidecar/ -q
+
+# 3. If a test fails, fix the signature drift in the corresponding
+#    patch function -- no LightRAG source files were ever touched.
+```
+
+### Patch propagation
+
+The pipeline passes the parsed Docling ``blocks_path`` directly into
+``build_chunks_dict_from_chunking_result``.  This avoids relying on a
+``contextvars.ContextVar`` surviving task creation and await boundaries.
+
+| Context var | What it carries | Set by | Consumed by |
+|------------|----------------|--------|-------------|
+| `_citation_cv` | Citation highlights dict | Patched `aquery_llm` | Route handler |
+
+---
+
+## Quick Start
+
+### 1. Install
+
+```bash
+cd ~/Documents/edw_rag/LightRAG
+
+# Dependencies (LightRAG + API)
+uv sync --extra api
+```
+
+### 2. Configure
+
+Create `.env` (example provided in repo):
+
+```ini
+LLM_BINDING=openai
+LLM_BINDING_HOST=http://fdz2.edw.ro/v1
+LLM_BINDING_API_KEY=your-key-here
+LLM_BINDING_MODEL=qwen3.6-35b-a3b-fast
+
+EMBEDDING_BINDING=openai
+EMBEDDING_BINDING_HOST=http://fdz2.edw.ro/v1
+EMBEDDING_BINDING_API_KEY=your-key-here
+EMBEDDING_BINDING_MODEL=qwen3-embedding-0.6b
+EMBEDDING_DIM=1024
+
+RERANK_BINDING=openai
+RERANK_BINDING_HOST=http://fdz2.edw.ro/v1
+RERANK_BINDING_API_KEY=your-key-here
+RERANK_BINDING_MODEL=qwen3-reranker-0.6b
+```
+
+### 3. Run
+
+```bash
+# Single process (dev or small workloads)
+uv run python -m edw_rag_patches.cli --host 127.0.0.1 --port 9621
+
+# Multi-worker (production)
+uv run python -m edw_rag_patches.gunicorn --workers 4 --port 9621
+
+# Or just test the pipeline with sample documents
+uv run python examples/edw_rag_demo.py
+```
+
+### 4. Query
+
+```bash
+curl -X POST http://127.0.0.1:9621/query/data \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is machine learning?", "mode": "mix"}'
+```
+
+The response includes `data.citation_highlights` with per-chunk highlights.
+
+---
+
+## API
+
+### Patch management
+
+```python
+from edw_rag_patches import (
+    apply_edw_rag_patches,      # install all patches
+    revert_edw_rag_patches,     # restore all originals
+    patch_app_routes,           # patch FastAPI app routes for /query
+)
+```
+
+### Extensions to LightRAG models
+
+| Model | New field | Description |
+|-------|-----------|-------------|
+| `QueryParam` | `include_citation_highlights: bool` | Request flag (default `False`) |
+| `QueryRequest` | `include_citation_highlights: bool` | API request field (default `False`) |
+| `QueryResponse` | `citation_highlights: dict \| None` | API response field |
+
+### Sidecar JSON schema
+
+```json
+{
+  "version": 1,
+  "sources": {
+    "<file_path>": {
+      "file_path": "<document path>",
+      "reference_id": "<1-based reference number>",
+      "chunks": [
+        {
+          "chunk_id": "<chunk identifier>",
+          "reference_id": "<same reference number>",
+          "highlights": [
+            {
+              "page": <integer page number>,
+              "bbox": {
+                "l": <float left>,
+                "t": <float top>,
+                "r": <float right>,
+                "b": <float bottom>
+              },
+              "origin": "LEFTTOP"   // optional, default coordinate system
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Testing
+
+```bash
+# Quick patch integrity check (< 1s)
+uv run python -c "
+from edw_rag_patches import apply_edw_rag_patches
+apply_edw_rag_patches()
+import lightrag.utils_pipeline as lup
+assert lup.build_chunks_dict_from_chunking_result.__module__ == 'edw_rag_patches'
+print('Patches OK')
+"
+
+# Full test suite with patches active (1800+ tests)
+uv run python -c "
+from edw_rag_patches import apply_edw_rag_patches
+apply_edw_rag_patches()
+" && uv run pytest tests/chunker/ tests/parser/ tests/sidecar/ -q \
+  -m 'not integration and not requires_db'
+
+# Functional test: sidecar JSON generation
+uv run python -c "
+import tempfile, json, os
+from edw_rag_patches.sidecar import enrich_chunks_with_positions, build_citation_highlights
+blocks = os.path.join(tempfile.mkdtemp(), 'blocks.jsonl')
+with open(blocks, 'w') as f:
+    f.write(json.dumps({'type': 'content', 'blockid': 'b1', 'content': 'test text',
+        'positions': [{'type': 'bbox', 'anchor': '1', 'range': [0,0,100,50]}]}) + '\n')
+chunks = {'ch-000': {'content': 'test text', 'file_path': '/doc.pdf', 'chunk_order_index': 0}}
+enrich_chunks_with_positions(chunks, [{'content': 'test text', 'chunk_order_index': 0,
+    'sidecar': {'type': 'block', 'id': 'b1', 'refs': [{'type': 'block', 'id': 'b1'}]}}], blocks)
+assert 'positions' in chunks['ch-000']
+print('Functional test OK')
+"
+```
+
+---
+
+## CI/CD (GitLab)
+
+`.gitlab-ci.yml` provides 5 stages:
+
+| Stage | Job | What it catches |
+|-------|-----|-----------------|
+| `lint` | `ruff-lint` | Code style |
+| `test` | `patches-unit-test` | Patch integrity (will fail on upstream signature drift) |
+| `test` | `core-tests` | 1800+ tests with patches active |
+| `test-full` | `full-test` | Full offline suite |
+| `demo` | `demo-pipeline` | E2E with GPUStack (gated on `GPU_STACK_API_KEY` secret) |
+
+---
+
+## How it Works: Position Matching
+
+### P-chunker (paragraph_semantic)
+
+The P-chunker already reads `blocks.jsonl` and produces `sidecar.refs` --
+a list of block IDs that were merged into each chunk.  Our enrichment is
+a direct ID lookup:
+
+```
+chunk.sidecar.refs  →  [block-001, block-002]
+                            ↓              ↓
+blocks.jsonl:  block-001.{positions}   block-002.{positions}
+                            ↓              ↓
+chunk.positions = [page=1, bbox={...}] + [page=1, bbox={...}]
+```
+
+### F/R/V chunkers (fixed_token / recursive_character / semantic_vector)
+
+These chunkers don't know about blocks.  We fall back to **text-overlap
+matching**: for each chunk, find blocks whose content shares ≥20 characters
+with the chunk, and take their positions.  Reliable for verbatim chunking
+because chunk text is a substring of the original document.
+
+```
+chunk "Artificial Intelligence is..."  →  find blocks with matching text
+                                            ↓
+blocks.jsonl:  block-003 has "Artificial Intelligence is..."
+                                            ↓
+chunk.positions = [page=1, bbox={...}]
+```
+
+---
+
+## Upgrade / Maintenance
+
+```bash
+# Update LightRAG
+uv sync --extra api
+
+# Run patch integrity check
+uv run python -c "
+from edw_rag_patches import apply_edw_rag_patches
+apply_edw_rag_patches()
+import lightrag.utils_pipeline as lup
+import lightrag.operate as lo
+import lightrag.utils as lu
+import lightrag.base as lb
+
+assert lup.build_chunks_dict_from_chunking_result.__module__ == 'edw_rag_patches'
+assert lo._get_vector_context.__name__ == 'get_vector_context'
+assert lu.convert_to_user_format.__module__ == 'edw_rag_patches.query_chain'
+assert hasattr(lb.QueryParam, 'include_citation_highlights')
+print('All patches intact after upgrade')
+"
+
+# If a test fails, the fix is in one file:
+#   edw_rag_patches/__init__.py      -- adjust import paths or signatures
+#   edw_rag_patches/query_chain.py   -- adjust function signatures
+#   edw_rag_patches/sidecar.py        -- adjust position format
+
+# LightRAG source files are never modified.
+```
+
+---
+
+## File Reference
+
+| File | Purpose |
+|------|---------|
+| `edw_rag_patches/__init__.py` | Patch manager: `apply`, `revert`, `patch_app_routes`. Contains all 8 monkey-patches and API model extensions. |
+| `edw_rag_patches/sidecar.py` | Core position logic: `enrich_chunks_with_positions()`, `build_citation_highlights()`, `_normalize_positions()`, `_load_blocks_jsonl()`, text-overlap matching. |
+| `edw_rag_patches/query_chain.py` | Query pipeline patches: `get_vector_context()`, `merge_all_chunks()`, `convert_to_user_format()`. |
+| `edw_rag_patches/cli.py` | Single-process server entrypoint. Usage: `uv run python -m edw_rag_patches.cli` |
+| `edw_rag_patches/gunicorn.py` | Multi-worker production entrypoint. Usage: `uv run python -m edw_rag_patches.gunicorn` |
+| `examples/edw_rag_demo.py` | Pipeline comparison demo (with/without patches). |
+| `.env` | GPUStack configuration for Qwen models. |
+| `.gitlab-ci.yml` | CI/CD pipeline with patch integrity checks. |
+| `tests/` | 1800+ tests (all pass with patches active). |
+
+## Requirements
+
+- Python 3.10+
+- LightRAG (local clone with `uv sync --extra api`)
+- GPUStack (or any OpenAI-compatible API) for LLM / embedding / reranker
+- Docling (for PDF parsing with bounding-box data)

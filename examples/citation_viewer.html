@@ -1,0 +1,1114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LightRAG · Citation viewer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+  <script>
+    if (window.pdfjsLib)
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  </script>
+  <style>
+    :root {
+      --ink: #182230;
+      --muted: #697586;
+      --line: #dfe5ec;
+      --paper: #fff;
+      --canvas: #f4f6f8;
+      --navy: #152033;
+      --blue: #2d6cdf;
+      --blue-soft: #e9f1ff;
+      --gold: #f7c948;
+      --violet: #8b5cf6;
+      --shadow: 0 14px 38px #10213b12;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font: 14px/1.55 Inter, ui-sans-serif, system-ui, -apple-system,
+        "Segoe UI", sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+    button {
+      font: inherit;
+    }
+    header {
+      height: 68px;
+      background: var(--navy);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 22px;
+    }
+    .logo {
+      font-weight: 750;
+      font-size: 18px;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+    }
+    .logo span {
+      color: #83b1ff;
+    }
+    .eyebrow {
+      font-size: 11px;
+      color: #aeb9ca;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    .status {
+      margin-left: auto;
+      color: #b8c3d3;
+      max-width: 360px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      border: 1px solid #ffffff2b;
+      background: #ffffff12;
+      color: #fff;
+      border-radius: 7px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: #ffffff22;
+    }
+    .btn.primary {
+      background: var(--blue);
+      border-color: var(--blue);
+    }
+    main {
+      height: calc(100vh - 68px);
+      display: grid;
+      grid-template-columns: minmax(390px, 43%) 1fr;
+    }
+    .left {
+      background: var(--paper);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--line);
+      padding: 0 18px;
+      background: #fbfcfd;
+    }
+    .tab {
+      border: 0;
+      background: none;
+      padding: 15px 12px 12px;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 650;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      color: var(--blue);
+      border-color: var(--blue);
+    }
+    .content {
+      overflow: auto;
+      padding: 26px 28px 44px;
+    }
+    .response-tools { display: flex; align-items: center; gap: 9px; margin: 14px 0 19px; }
+    .search { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--ink); background: #fbfcfe; outline: none; }
+    .search:focus { border-color: var(--blue); box-shadow: 0 0 0 3px #2d6cdf18; }
+    .tool-button { border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--muted); padding: 8px 10px; cursor: pointer; white-space: nowrap; }
+    .tool-button:hover { color: var(--blue); border-color: #b9d1ff; }
+    .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 22px; }
+    .metric { background: #f7f9fc; border: 1px solid #e8edf3; border-radius: 9px; padding: 10px 11px; }
+    .metric strong { display: block; font-size: 17px; line-height: 1.1; }
+    .metric span { color: var(--muted); font-size: 11px; }
+    .answer-label {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 750;
+    }
+    .answer-label i {
+      width: 8px;
+      height: 8px;
+      background: #35b37e;
+      border-radius: 50%;
+      display: block;
+    }
+    .response {
+      font-size: 15px;
+      line-height: 1.72;
+      margin-top: 12px;
+    }
+    .response h1,
+    .response h2,
+    .response h3 {
+      line-height: 1.2;
+      margin: 25px 0 10px;
+    }
+    .response p {
+      margin: 0 0 14px;
+    }
+    .response ul,
+    .response ol {
+      padding-left: 23px;
+    }
+    .response code {
+      background: #f0f3f7;
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
+    .response pre {
+      background: #172235;
+      color: #e8eef8;
+      padding: 15px;
+      border-radius: 8px;
+      overflow: auto;
+    }
+    .citation {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 23px;
+      padding: 1px 6px;
+      margin: 0 2px;
+      border-radius: 5px;
+      background: var(--blue-soft);
+      border: 1px solid #b9d1ff;
+      color: #235dbd;
+      font-size: 11px;
+      font-weight: 800;
+      vertical-align: baseline;
+      cursor: pointer;
+    }
+    .citation:hover,
+    .citation.selected {
+      background: var(--blue);
+      color: #fff;
+      box-shadow: 0 3px 10px #2d6cdf3d;
+    }
+    .response mark { background: #fff0a8; border-radius: 3px; padding: 0 2px; }
+    .section {
+      border-top: 1px solid var(--line);
+      margin-top: 28px;
+      padding-top: 21px;
+    }
+    .section h2 {
+      font-size: 14px;
+      margin: 0 0 13px;
+    }
+    .ref {
+      display: flex;
+      gap: 12px;
+      padding: 13px 0;
+      border-bottom: 1px solid #edf0f3;
+      cursor: pointer;
+    }
+    .ref:last-child {
+      border-bottom: 0;
+    }
+    .ref-num {
+      background: var(--blue);
+      color: white;
+      border-radius: 5px;
+      width: 25px;
+      height: 25px;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 800;
+      flex: none;
+    }
+    .ref-title {
+      font-weight: 700;
+    }
+    .ref-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .source {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      margin-bottom: 13px;
+      overflow: hidden;
+    }
+    .source.hidden, .ref.hidden { display: none; }
+    .source-head {
+      background: #fafbfc;
+      padding: 13px 15px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    .source-name {
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .count {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .source-actions { display: flex; align-items: center; gap: 8px; }
+    .source-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 0 3px #8b5cf620; }
+    .chunk {
+      padding: 13px 15px;
+      border-bottom: 1px solid #edf0f3;
+    }
+    .chunk:last-child {
+      border: 0;
+    }
+    .chunk-id {
+      color: var(--muted);
+      font: 11px ui-monospace, monospace;
+    }
+    .highlight-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 9px;
+    }
+    .highlight {
+      border: 1px solid #f0c94b;
+      background: #fff9df;
+      color: #745900;
+      border-radius: 5px;
+      padding: 5px 8px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .highlight:hover,
+    .highlight.active {
+      background: #ffeaa0;
+      border-color: #d3a719;
+    }
+    .highlight.active { box-shadow: 0 0 0 3px #f7c94855; }
+    .highlight:focus-visible, .citation:focus-visible, .tool-button:focus-visible,
+    .btn:focus-visible, .tab:focus-visible { outline: 3px solid #83b1ff; outline-offset: 2px; }
+    .evidence-hint { color: var(--muted); font-size: 12px; margin: -8px 0 15px; }
+    .empty {
+      min-height: 300px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      padding: 35px;
+    }
+    .empty strong {
+      display: block;
+      color: var(--ink);
+      font-size: 17px;
+      margin-bottom: 6px;
+    }
+    .right {
+      background: #202b3c;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .toolbar {
+      height: 54px;
+      background: #182334;
+      color: #d7dfeb;
+      border-bottom: 1px solid #ffffff18;
+      padding: 0 18px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+    .doc-title {
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .toolbar .spacer {
+      flex: 1;
+    }
+    .zoom {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .zoom button {
+      border: 0;
+      border-radius: 5px;
+      background: #ffffff15;
+      color: #fff;
+      width: 28px;
+      height: 28px;
+      cursor: pointer;
+    }
+    .page-nav { display: flex; align-items: center; gap: 6px; }
+    .page-nav button, .fit-button { border: 1px solid #ffffff1f; border-radius: 5px; background: #ffffff12; color: #fff; height: 28px; padding: 0 8px; cursor: pointer; }
+    .page-nav button:hover, .fit-button:hover { background: #ffffff25; }
+    .evidence-count { color: #aeb9ca; font-size: 12px; white-space: nowrap; }
+    .pages {
+      overflow: auto;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+    .page {
+      position: relative;
+      background: #fff;
+      box-shadow: 0 14px 35px #0005;
+    }
+    .page canvas {
+      display: block;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .box {
+      fill: #f7c94870;
+      stroke: #c29400;
+      stroke-width: 2;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .box:hover,
+    .box.active {
+      fill: #f7c948b8;
+      stroke: #795b00;
+      stroke-width: 3;
+    }
+    .box.active { filter: drop-shadow(0 0 6px #fff); }
+    .box-label { font: 700 11px ui-sans-serif, system-ui; fill: #5b4600; pointer-events: none; }
+    .toast {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #182334;
+      color: white;
+      border-radius: 8px;
+      padding: 10px 15px;
+      box-shadow: var(--shadow);
+      display: none;
+    }
+    .toast.show {
+      display: block;
+    }
+    .sr-only {
+      position: absolute;
+      left: -9999px;
+    }
+    @media (max-width: 850px) {
+      body {
+        overflow: auto;
+      }
+      header {
+        height: auto;
+        min-height: 68px;
+        flex-wrap: wrap;
+        padding: 14px;
+      }
+      .status {
+        order: 3;
+        width: 100%;
+        margin: 0;
+      }
+      main {
+        height: auto;
+        min-height: calc(100vh - 68px);
+        grid-template-columns: 1fr;
+      }
+      .left {
+        min-height: 560px;
+        border-right: 0;
+      }
+      .right {
+        min-height: 600px;
+      }
+      .content {
+        padding: 22px 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Light<span>RAG</span></div>
+    <div class="eyebrow">Evidence workspace</div>
+  </div>
+  <div class="status" id="status">Load a LightRAG response to begin</div>
+  <div class="actions">
+    <button class="btn primary" id="loadJson">Load response</button>
+    <button class="btn" id="loadPdf">Attach PDF</button>
+    <button class="btn" id="sample">Try sample</button>
+    <button class="btn" id="reset">Reset</button>
+  </div>
+  <input class="sr-only" id="jsonFile" type="file" accept=".json">
+  <input class="sr-only" id="pdfFile" type="file" accept=".pdf">
+</header>
+
+<main>
+  <section class="left">
+    <nav class="tabs">
+      <button class="tab active" data-tab="response">Response</button>
+      <button class="tab" data-tab="sources">Citations</button>
+      <button class="tab" data-tab="entities">Knowledge graph</button>
+    </nav>
+    <div class="content" id="content">
+      <div class="empty">
+        <div>
+          <strong>No response loaded</strong>
+          Load a `/query` or `/query/data` JSON response, then inspect every
+          citation beside its evidence.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="right">
+    <div class="toolbar">
+      <div class="doc-title" id="docTitle">Document preview</div>
+      <div class="spacer"></div>
+      <div class="page-nav">
+        <button id="prevEvidence" aria-label="Previous citation highlight">‹</button>
+        <span class="evidence-count" id="evidenceCount">No evidence</span>
+        <button id="nextEvidence" aria-label="Next citation highlight">›</button>
+      </div>
+      <button class="fit-button" id="fitWidth">Fit</button>
+      <div class="zoom">
+        <button id="zoomOut" aria-label="Zoom out">−</button>
+        <span id="zoomValue">85%</span>
+        <button id="zoomIn" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="pages" id="pages">
+      <div class="empty" style="color:#aeb9ca">
+        <div>
+          <strong style="color:#fff">No document attached</strong>
+          Attach a PDF to render real pages.
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── state ──────────────────────────────────────────────────────────────────
+const state = {
+  json: null,
+  pdf: null,
+  zoom: 0.85,
+  tab: "response",
+  active: null,
+  search: "",
+  evidenceIndex: -1,
+};
+
+const $ = (s) => document.querySelector(s);
+const esc = (v) =>
+  String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+// ── data accessors ─────────────────────────────────────────────────────────
+function data() {
+  return state.json?.data || state.json || {};
+}
+function refs() {
+  return data().references || state.json?.references || [];
+}
+function highlights() {
+  return (
+    data().citation_highlights || state.json?.citation_highlights || {}
+  );
+}
+function sources() {
+  return highlights().sources || {};
+}
+function response() {
+  return (
+    data().displayContent ||
+    data().response ||
+    data().answer ||
+    data().message ||
+    state.json?.displayContent ||
+    state.json?.response ||
+    ""
+  );
+}
+function allHighlights() {
+  return Object.entries(sources()).flatMap(([file, s]) =>
+    (s.chunks || []).flatMap((ch) =>
+      (ch.highlights || []).map((h, index) => ({
+        ...h, file, refId: String(s.reference_id || ""), chunkId: ch.chunk_id || "", index,
+      }))
+    )
+  );
+}
+function evidenceLabel(h) { return h.file + " · page " + (h.page || 1); }
+function highlightKey(h) { return h.file + "|" + (h.page || 1) + "|" + JSON.stringify(h.bbox || {}); }
+
+// ── toast ──────────────────────────────────────────────────────────────────
+function notify(msg) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+// ── markdown → citation HTML ────────────────────────────────────────────────
+function citeHtml(text) {
+  if (!window.marked) return esc(text);
+  let html = marked.parse(text);
+  return html.replace(
+    /\[\^?(\d+)\]/g,
+    (_, id) =>
+      `<button class="citation ${state.active === id ? "selected" : ""}" data-ref="${esc(id)}">[${esc(id)}]</button>`
+  );
+}
+
+// ── tab rendering ──────────────────────────────────────────────────────────
+function render() {
+  document
+    .querySelectorAll(".tab")
+    .forEach((b) => b.classList.toggle("active", b.dataset.tab === state.tab));
+
+  const c = $("#content");
+  if (!state.json) {
+    c.innerHTML =
+      '<div class="empty"><div><strong>No response loaded</strong>Load a `/query` or `/query/data` JSON response, then inspect every citation beside its evidence.</div></div>';
+    return;
+  }
+
+  if (state.tab === "response") renderResponse(c);
+  if (state.tab === "sources") renderSources(c);
+  if (state.tab === "entities") renderEntities(c);
+}
+
+function renderResponse(c) {
+  const all = allHighlights();
+  const sourceCount = Object.keys(sources()).length || refs().length;
+  let html =
+    '<div class="answer-label"><i></i>Generated response</div>' +
+    '<div class="response-tools"><input class="search" id="citationSearch" type="search" placeholder="Filter citations or evidence…" aria-label="Filter citations or evidence"><button class="tool-button" id="copyResponse">Copy answer</button></div>' +
+    '<div class="summary"><div class="metric"><strong>' + refs().length + '</strong><span>sources cited</span></div><div class="metric"><strong>' + sourceCount + '</strong><span>evidence files</span></div><div class="metric"><strong>' + all.length + '</strong><span>highlights</span></div></div>' +
+    "<article class=\"response\">" +
+    (citeHtml(response()) || "<p>No response text found.</p>") +
+    "</article>";
+
+  const rl = refs();
+  if (rl.length) {
+    html +=
+      '<div class="section"><h2>Sources <span style="color:var(--muted);font-weight:400">' +
+      rl.length +
+      ' cited</span></h2>' +
+      rl
+        .map((r) => {
+          const id = String(r.reference_id ?? r.id ?? "");
+          return (
+            '<div class="ref" data-ref="' +
+              esc(id) +
+              '" data-searchable="' +
+              esc((r.file_path || r.title || "").toLowerCase()) +
+              '"' +
+            '"><div class="ref-num">' +
+            esc(id || "?") +
+            '</div><div><div class="ref-title">' +
+            esc(r.file_path || r.title || "Untitled source") +
+            '</div><div class="ref-meta">' +
+            esc(r.chunk_id || "Source reference") +
+            " · Click to inspect evidence</div></div></div>"
+          );
+        })
+        .join("") +
+      "</div>";
+  }
+
+  c.innerHTML = html;
+}
+
+function renderSources(c) {
+  const keys = Object.keys(sources());
+
+  if (!keys.length) {
+    const rl = refs();
+    if (rl.length) {
+      c.innerHTML =
+        '<div class="section" style="border:0;margin:0;padding:0"><h2>Sources <span style="color:var(--muted);font-weight:400">' +
+        rl.length +
+        ' cited</span></h2>' +
+        rl
+          .map((r) => {
+            const id = String(r.reference_id ?? r.id ?? "");
+            return (
+              '<div class="ref" data-ref="' +
+              esc(id) +
+              '" data-searchable="' +
+              esc((r.file_path || r.title || "").toLowerCase()) +
+              '"' +
+              '"><div class="ref-num">' +
+              esc(id || "?") +
+              '</div><div><div class="ref-title">' +
+              esc(r.file_path || r.title || "Untitled source") +
+              '</div><div class="ref-meta">' +
+              (r.chunk_id ||
+                "Attach a PDF with highlights to see evidence") +
+              "</div></div></div>"
+            );
+          })
+          .join("") +
+        "</div>";
+      return;
+    }
+    c.innerHTML =
+      '<div class="empty"><div><strong>No citation highlights</strong>This response contains no structured bounding-box evidence.</div></div>';
+    return;
+  }
+
+  c.innerHTML = '<div class="evidence-hint">Select a highlight to jump to its exact region in the document. Use <b>‹</b> and <b>›</b> above the preview to step through evidence.</div>' + keys
+    .map((fp) => {
+      const s = sources()[fp];
+      const chunks = s.chunks || [];
+      return (
+        '<div class="source" data-searchable="' + esc(fp.toLowerCase()) + '"><div class="source-head"><div class="source-name">' +
+        esc(fp) +
+        '</div><div class="source-actions"><span class="source-dot"></span><div class="count">' +
+        chunks.length +
+        " chunk" +
+        (chunks.length === 1 ? "" : "s") +
+        '</div></div></div>' +
+        chunks
+          .map((ch) => {
+            const highlights = ch.highlights || [];
+            return (
+              '<div class="chunk"><div class="chunk-id">' +
+              esc(ch.chunk_id || "Chunk") +
+              '</div><div class="highlight-list">' +
+              (highlights.length
+                ? highlights
+                    .map((h, i) => {
+                      const b = h.bbox || {};
+                      return (
+                        '<button title="' + esc(evidenceLabel({ ...h, file: fp })) + '" class="highlight" data-highlight="' +
+                        esc(
+                          JSON.stringify({
+                            file: fp,
+                            page: h.page || 1,
+                            bbox: b,
+                          })
+                        ) +
+                        '">Page ' +
+                        (h.page || 1) +
+                        " · " +
+                        Math.round(b.r ?? 0) +
+                        "×" +
+                        Math.round(b.b ?? 0) +
+                        "</button>"
+                      );
+                    })
+                    .join("")
+                : '<span class="ref-meta">No page coordinates</span>') +
+              "</div></div>"
+            );
+          })
+          .join("") +
+        "</div>"
+      );
+    })
+    .join("");
+}
+
+function renderEntities(c) {
+  const es = data().entities || [];
+  if (!es.length) {
+    c.innerHTML =
+      '<div class="empty"><div><strong>No entities returned</strong>Knowledge graph details were not included in this response.</div></div>';
+    return;
+  }
+
+  c.innerHTML =
+    '<div class="section" style="border:0;margin:0;padding:0"><h2>Entities</h2>' +
+    es
+      .map((e) => {
+        const letter = (e.entity_type || e.type || "E").slice(0, 1).toUpperCase();
+        return (
+          '<div class="ref"><div class="ref-num">' +
+          esc(letter) +
+          '</div><div><div class="ref-title">' +
+          esc(e.entity_name || e.name || "Unnamed entity") +
+          '</div><div class="ref-meta">' +
+          esc(e.description || e.entity_type || e.type || "") +
+          "</div></div></div>"
+        );
+      })
+      .join("") +
+    "</div>";
+}
+
+// ── PDF rendering ──────────────────────────────────────────────────────────
+
+/** Compute an SVG rect from a bbox dict, enforcing a minimum visible size. */
+function bboxToRect(bbox, pageHeight) {
+  const l = Number(bbox.l ?? bbox.left ?? bbox.x ?? 0);
+  const t = Number(bbox.t ?? bbox.top ?? bbox.y ?? 0);
+  const r = Number(bbox.r ?? bbox.right ?? l + Number(bbox.width || 0));
+  const bot = Number(
+    bbox.b ?? bbox.bottom ?? t + Number(bbox.height || 0)
+  );
+  const rawH = Math.abs(bot - t);
+  const minH = Math.max(18, Math.min(34, pageHeight * 0.04));
+  const height = Math.max(rawH, minH);
+  const y = Math.max(
+    0,
+    Math.min(t - (height - rawH) / 2, pageHeight - height)
+  );
+  return { x: l, y, width: Math.max(4, r - l), height };
+}
+
+/** Detect whether highlight bboxes use PDF coordinates (origin bottom‑left, t > b). */
+function bboxesNeedFlip() {
+  return allHighlights().some(
+    (x) =>
+      x.bbox &&
+      (Number(x.bbox.t) || 0) > (Number(x.bbox.b) || 0)
+  );
+}
+
+/** Render PDF pages and overlay highlight boxes. */
+async function renderPdf(targetPage) {
+  const hs = allHighlights();
+  updateEvidenceCount(hs);
+  const needFlip = bboxesNeedFlip();
+  const pageNums = [
+    ...new Set(hs.map((h) => Number(h.page) || 1)),
+  ].sort((a, b) => a - b);
+  if (!pageNums.length) pageNums.push(1);
+
+  const list = $("#pages");
+  list.innerHTML = "";
+
+  for (const n of pageNums) {
+    // Page dimensions
+    let pdfPage =
+      state.pdf && n <= state.pdf.numPages
+        ? await state.pdf.getPage(n)
+        : null;
+    let w = 612;
+    let ph = 792; // raw page height (points)
+
+    if (pdfPage) {
+      const vp = pdfPage.getViewport({ scale: 1 });
+      w = vp.width;
+      ph = vp.height;
+    } else {
+      // Estimate from largest bbox
+      hs.filter((x) => x.page === n).forEach((x) => {
+        const b = x.bbox || {};
+        w = Math.max(w, b.r || 0);
+        ph = Math.max(ph, b.b || 0);
+      });
+    }
+
+    // ── preserve raw page height before adding container padding ──
+    const rawPageH = ph;
+
+    // Container gets a small padding gutter when there's no real PDF
+    if (!pdfPage) {
+      w += 40;
+      ph += 40;
+    }
+
+    // Page wrapper
+    const pageDiv = document.createElement("div");
+    pageDiv.className = "page";
+    pageDiv.id = `page-${n}`;
+    pageDiv.style.width = `${w * state.zoom}px`;
+    pageDiv.style.height = `${ph * state.zoom}px`;
+
+    // Canvas for PDF rendering
+    const canvas = document.createElement("canvas");
+    canvas.width = w * state.zoom;
+    canvas.height = ph * state.zoom;
+    pageDiv.appendChild(canvas);
+
+    // SVG overlay for highlight boxes
+    const svg = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg"
+    );
+    svg.classList.add("overlay");
+    svg.setAttribute(
+      "viewBox",
+      `0 0 ${w * state.zoom} ${ph * state.zoom}`
+    );
+
+    hs.filter((x) => (Number(x.page) || 1) === n).forEach((x) => {
+      let bb = x.bbox || {};
+
+      // Flip Y for PDF-native coordinates (origin bottom‑left)
+      if (needFlip) {
+        const pdfTop = Number(bb.t) || 0;
+        const pdfBot = Number(bb.b) || 0;
+        bb = {
+          l: bb.l,
+          t: rawPageH - pdfTop, // screen top = page height − PDF top
+          r: bb.r,
+          b: rawPageH - pdfBot, // screen bottom = page height − PDF bottom
+        };
+      }
+
+      const r = bboxToRect(bb, ph);
+      const rect = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "rect"
+      );
+      rect.classList.add("box");
+      if (state.active === highlightKey(x)) rect.classList.add("active");
+      rect.dataset.key = JSON.stringify({
+        file: x.file,
+        page: n,
+        bbox: x.bbox || {},
+      });
+      rect.setAttribute("x", r.x * state.zoom);
+      rect.setAttribute("y", r.y * state.zoom);
+      rect.setAttribute("width", r.width * state.zoom);
+      rect.setAttribute("height", r.height * state.zoom);
+      rect.setAttribute("rx", 4);
+      svg.appendChild(rect);
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.classList.add("box-label");
+      label.textContent = String(hs.indexOf(x) + 1);
+      label.setAttribute("x", (r.x + 5) * state.zoom);
+      label.setAttribute("y", (r.y + 14) * state.zoom);
+      svg.appendChild(label);
+    });
+
+    pageDiv.appendChild(svg);
+    list.appendChild(pageDiv);
+
+    // Render PDF content onto canvas
+    if (pdfPage) {
+      await pdfPage.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport: pdfPage.getViewport({ scale: state.zoom }),
+      }).promise;
+    }
+  }
+
+  // Scroll to target page
+  if (targetPage) {
+    document
+      .querySelector(`#page-${targetPage}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+// ── interaction ────────────────────────────────────────────────────────────
+function focusRef(id) {
+  state.active = String(id);
+  state.tab = "sources";
+  render();
+  const h = allHighlights().find((x) => x.refId === String(id));
+  if (h) focusHighlight(h);
+}
+
+function focusHighlight(h) {
+  state.active = highlightKey(h);
+  state.evidenceIndex = Math.max(0, allHighlights().findIndex((item) => highlightKey(item) === state.active));
+  if (state.tab === "sources") render();
+  renderPdf(h.page || 1);
+  notify(`Showing evidence on page ${h.page || 1}`);
+}
+
+function updateEvidenceCount(hs) {
+  const el = $("#evidenceCount");
+  if (!hs.length) { el.textContent = "No evidence"; return; }
+  el.textContent = (Math.max(0, state.evidenceIndex + 1)) + " / " + hs.length;
+}
+
+function stepEvidence(delta) {
+  const hs = allHighlights();
+  if (!hs.length) return notify("No citation highlights available");
+  state.evidenceIndex = (state.evidenceIndex + delta + hs.length) % hs.length;
+  focusHighlight(hs[state.evidenceIndex]);
+}
+
+function load(json, name) {
+  state.json = json;
+  state.active = null;
+  state.evidenceIndex = -1;
+  $("#status").textContent = `Loaded · ${name}`;
+  state.tab = "response";
+  render();
+  renderPdf();
+}
+
+// ── wire up UI ─────────────────────────────────────────────────────────────
+$("#loadJson").onclick = () => $("#jsonFile").click();
+$("#loadPdf").onclick = () => $("#pdfFile").click();
+
+$("#sample").onclick = () =>
+  load(
+    {
+      response:
+        "LightRAG connects answers to evidence with inline citations [1]. " +
+        "Open a citation to inspect the exact page region that supports the claim.",
+      references: [{ reference_id: "1", file_path: "sample-report.pdf" }],
+      citation_highlights: {
+        version: 1,
+        sources: {
+          "sample-report.pdf": {
+            reference_id: "1",
+            chunks: [
+              {
+                chunk_id: "sample-001",
+                highlights: [
+                  { page: 1, bbox: { l: 70, t: 125, r: 490, b: 205 } },
+                  { page: 2, bbox: { l: 70, t: 280, r: 510, b: 355 } },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    },
+    "Sample response"
+  );
+
+$("#reset").onclick = () => {
+  state.json = null;
+  state.pdf = null;
+  state.evidenceIndex = -1;
+  $("#status").textContent = "Load a LightRAG response to begin";
+  $("#docTitle").textContent = "Document preview";
+  render();
+  renderPdf();
+};
+
+document.querySelectorAll(".tab").forEach((b) => {
+  b.onclick = () => {
+    state.tab = b.dataset.tab;
+    render();
+  };
+});
+
+$("#zoomIn").onclick = () => {
+  state.zoom = Math.min(2, state.zoom + 0.1);
+  $("#zoomValue").textContent = Math.round(state.zoom * 100) + "%";
+  renderPdf();
+};
+
+$("#zoomOut").onclick = () => {
+  state.zoom = Math.max(0.4, state.zoom - 0.1);
+  $("#zoomValue").textContent = Math.round(state.zoom * 100) + "%";
+  renderPdf();
+};
+
+$("#prevEvidence").onclick = () => stepEvidence(-1);
+$("#nextEvidence").onclick = () => stepEvidence(1);
+$("#fitWidth").onclick = () => {
+  const pages = $("#pages");
+  state.zoom = Math.min(1.4, Math.max(0.4, (pages.clientWidth - 64) / 612));
+  $("#zoomValue").textContent = Math.round(state.zoom * 100) + "%";
+  renderPdf();
+};
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea")) return;
+  if (e.key === "ArrowRight" || e.key.toLowerCase() === "n") stepEvidence(1);
+  if (e.key === "ArrowLeft" || e.key.toLowerCase() === "p") stepEvidence(-1);
+  if (e.key === "+" || e.key === "=") $("#zoomIn").click();
+  if (e.key === "-") $("#zoomOut").click();
+});
+
+$("#jsonFile").onchange = (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      load(JSON.parse(r.result), f.name);
+    } catch (err) {
+      notify("Invalid JSON: " + err.message);
+    }
+  };
+  r.readAsText(f);
+};
+
+$("#pdfFile").onchange = (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = async () => {
+    try {
+      state.pdf = await pdfjsLib.getDocument(
+        new Uint8Array(r.result)
+      ).promise;
+      $("#docTitle").textContent =
+        f.name + " · " + state.pdf.numPages + " pages";
+      renderPdf();
+    } catch (err) {
+      notify("Could not open PDF: " + err.message);
+    }
+  };
+  r.readAsArrayBuffer(f);
+};
+
+// Click on citation buttons or reference cards
+$("#content").onclick = (e) => {
+  const ref = e.target.closest("[data-ref]");
+  if (ref) focusRef(ref.dataset.ref);
+  const hit = e.target.closest("[data-highlight]");
+  if (hit) focusHighlight(JSON.parse(hit.dataset.highlight));
+  if (e.target.id === "copyResponse") {
+    navigator.clipboard?.writeText(response()).then(() => notify("Answer copied"));
+  }
+};
+
+$("#content").oninput = (e) => {
+  if (e.target.id !== "citationSearch") return;
+  state.search = e.target.value.toLowerCase().trim();
+  document.querySelectorAll("[data-searchable]").forEach((el) => {
+    el.classList.toggle("hidden", Boolean(state.search) && !el.dataset.searchable.includes(state.search));
+  });
+};
+
+$("#pages").onclick = (e) => {
+  const box = e.target.closest(".box");
+  if (box) focusHighlight(JSON.parse(box.dataset.key));
+};
+
+// ── bootstrap ──────────────────────────────────────────────────────────────
+render();
+</script>
+
+</body>
+</html>

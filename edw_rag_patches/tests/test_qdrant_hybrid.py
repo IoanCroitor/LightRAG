@@ -87,7 +87,9 @@ class _Client:
         return SimpleNamespace(
             points=[
                 SimpleNamespace(
-                    payload={"id": "chunk-1", "created_at": 1}, score=0.42
+                    id="point-1",
+                    payload={"id": "chunk-1", "created_at": 1},
+                    score=0.42,
                 )
             ]
         )
@@ -129,12 +131,20 @@ class _Storage:
         return [{"legacy": True}]
 
 
+def _restore(storage_cls, originals) -> None:
+    storage_cls.initialize = originals["initialize"]
+    storage_cls.upsert = originals["upsert"]
+    storage_cls.delete = originals["delete"]
+    storage_cls._flush_pending_vector_ops = originals["flush"]
+    storage_cls.query = originals["query"]
+
+
 async def test_native_bm25_is_added_without_reembedding_dense_vectors(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("EDW_QDRANT_HYBRID_ENABLED", "true")
     monkeypatch.setattr(qdrant_hybrid, "_qdrant_point_id", lambda _s, _id: "uuid-1")
-    qdrant_hybrid.apply_qdrant_hybrid_patch(
+    originals = qdrant_hybrid.apply_qdrant_hybrid_patch(
         _Storage, _Models, SimpleNamespace(info=lambda _m: None)
     )
     storage = _Storage()
@@ -151,3 +161,27 @@ async def test_native_bm25_is_added_without_reembedding_dense_vectors(
     assert len(query["prefetch"]) == 2
     assert query["query"].kwargs["fusion"] == "rrf"
     assert result == [{"id": "chunk-1", "created_at": 1, "distance": 0.42}]
+    _restore(_Storage, originals)
+
+
+async def test_debug_mode_logs_dense_bm25_and_fused_rankings(monkeypatch) -> None:
+    monkeypatch.setenv("EDW_QDRANT_HYBRID_ENABLED", "true")
+    monkeypatch.setenv("EDW_QDRANT_HYBRID_DEBUG", "true")
+    messages: list[str] = []
+    logger = SimpleNamespace(
+        info=lambda _m: None,
+        debug=lambda message, *args: messages.append(message % args),
+        exception=lambda message, *args: messages.append(message % args),
+    )
+    originals = qdrant_hybrid.apply_qdrant_hybrid_patch(_Storage, _Models, logger)
+    storage = _Storage()
+
+    await storage.query("ABC-123", top_k=2)
+
+    # One fused RRF request plus dense and BM25 review requests in debug mode.
+    assert len(storage._client.query_points_calls) == 3
+    assert any("branch=fused_rrf" in message for message in messages)
+    assert any("branch=dense" in message for message in messages)
+    assert any("branch=bm25" in message for message in messages)
+    assert all("ABC-123" not in message for message in messages)
+    _restore(_Storage, originals)

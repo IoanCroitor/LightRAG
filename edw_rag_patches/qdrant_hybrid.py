@@ -48,7 +48,17 @@ def apply_qdrant_hybrid_patch(
     async def initialize(self) -> None:
         await originals["initialize"](self)
         if enabled():
-            _ensure_sparse_vector(self._client, self.final_namespace, models)
+            created = _ensure_sparse_vector(
+                self._client, self.final_namespace, models
+            )
+            if _debug_enabled():
+                logger.debug(
+                    "[edw-rag] hybrid schema collection=%s sparse_vector=%s "
+                    "created=%s",
+                    self.final_namespace,
+                    _vector_name(),
+                    created,
+                )
 
     async def flush(self) -> None:
         # The side buffer is recorded by ``upsert`` rather than copied from
@@ -60,6 +70,14 @@ def apply_qdrant_hybrid_patch(
             _update_sparse_vectors(self, sparse_docs, models)
             for doc_id, _content in sparse_docs:
                 self._edw_bm25_pending.pop(doc_id, None)
+            if _debug_enabled():
+                logger.debug(
+                    "[edw-rag] hybrid BM25 indexed collection=%s points=%d "
+                    "sparse_vector=%s",
+                    self.final_namespace,
+                    len(sparse_docs),
+                    _vector_name(),
+                )
 
     async def upsert(self, data: dict[str, dict[str, Any]]) -> None:
         await originals["upsert"](self, data)
@@ -112,6 +130,19 @@ def apply_qdrant_hybrid_patch(
             using=_vector_name(),
             limit=prefetch_limit,
         )
+        if _debug_enabled():
+            logger.debug(
+                "[edw-rag] hybrid search collection=%s workspace=%s top_k=%d "
+                "prefetch_limit=%d dense_threshold=%s sparse_vector=%s "
+                "fusion=rrf query_chars=%d",
+                self.final_namespace,
+                self.effective_workspace,
+                top_k,
+                prefetch_limit,
+                self.cosine_better_than_threshold,
+                _vector_name(),
+                len(query),
+            )
         try:
             response = self._client.query_points(
                 collection_name=self.final_namespace,
@@ -122,10 +153,32 @@ def apply_qdrant_hybrid_patch(
                 query_filter=query_filter,
             )
         except Exception as exc:
+            logger.exception(
+                "[edw-rag] hybrid search failed collection=%s workspace=%s",
+                self.final_namespace,
+                self.effective_workspace,
+            )
             raise RuntimeError(
                 "Qdrant hybrid search failed. Ensure the server supports native "
                 "inference and the collection has the configured sparse vector."
             ) from exc
+
+        if _debug_enabled():
+            _log_hybrid_results(
+                logger,
+                "fused_rrf",
+                response.points,
+                self.final_namespace,
+            )
+            _log_component_results(
+                self,
+                models,
+                logger,
+                embedding,
+                query,
+                prefetch_limit,
+                query_filter,
+            )
 
         return [
             {
@@ -145,13 +198,13 @@ def apply_qdrant_hybrid_patch(
     return originals
 
 
-def _ensure_sparse_vector(client: Any, collection_name: str, models: Any) -> None:
+def _ensure_sparse_vector(client: Any, collection_name: str, models: Any) -> bool:
     """Add the sparse schema once; this is a no-data schema operation."""
     vector_name = _vector_name()
     info = client.get_collection(collection_name)
     sparse_vectors = getattr(info.config.params, "sparse_vectors", None) or {}
     if vector_name in sparse_vectors:
-        return
+        return False
     try:
         client.create_vector_name(
             collection_name=collection_name,
@@ -160,11 +213,76 @@ def _ensure_sparse_vector(client: Any, collection_name: str, models: Any) -> Non
                 sparse=models.SparseVectorConfig(modifier=models.Modifier.IDF)
             ),
         )
+        return True
     except AttributeError as exc:
         raise RuntimeError(
             "EDW Qdrant hybrid search requires Qdrant server and qdrant-client "
             "version 1.18+ to add the sparse vector schema."
         ) from exc
+
+
+def _log_component_results(
+    storage: Any,
+    models: Any,
+    logger: Any,
+    embedding: list[float],
+    query: str,
+    limit: int,
+    query_filter: Any,
+) -> None:
+    """Log branch rankings only when explicit hybrid debugging is enabled.
+
+    Qdrant's RRF response intentionally contains the fused rank, not the
+    individual dense/BM25 scores.  These two additional read-only queries make
+    the component rankings observable without changing normal query cost.
+    """
+    try:
+        dense = storage._client.query_points(
+            collection_name=storage.final_namespace,
+            query=embedding,
+            limit=limit,
+            with_payload=True,
+            score_threshold=storage.cosine_better_than_threshold,
+            query_filter=query_filter,
+        )
+        sparse = storage._client.query_points(
+            collection_name=storage.final_namespace,
+            query=_document(query, models),
+            using=_vector_name(),
+            limit=limit,
+            with_payload=True,
+            query_filter=query_filter,
+        )
+    except Exception:
+        logger.exception(
+            "[edw-rag] hybrid debug component review failed collection=%s",
+            storage.final_namespace,
+        )
+        return
+
+    _log_hybrid_results(logger, "dense", dense.points, storage.final_namespace)
+    _log_hybrid_results(logger, "bm25", sparse.points, storage.final_namespace)
+
+
+def _log_hybrid_results(
+    logger: Any, branch: str, points: list[Any], collection_name: str
+) -> None:
+    """Log result ranks and scores without exposing chunk content."""
+    results = [
+        {
+            "rank": rank,
+            "id": point.payload.get("id", str(point.id)),
+            "score": round(float(point.score), 6),
+        }
+        for rank, point in enumerate(points, start=1)
+    ]
+    logger.debug(
+        "[edw-rag] hybrid results collection=%s branch=%s count=%d results=%s",
+        collection_name,
+        branch,
+        len(results),
+        results,
+    )
 
 
 def _update_sparse_vectors(self: Any, docs: list[tuple[str, str]], models: Any) -> None:
@@ -208,6 +326,10 @@ def _prefetch_multiplier() -> int:
         return max(1, int(os.getenv("EDW_QDRANT_HYBRID_PREFETCH_MULTIPLIER", "3")))
     except ValueError:
         return 3
+
+
+def _debug_enabled() -> bool:
+    return _env_bool("EDW_QDRANT_HYBRID_DEBUG", False)
 
 
 def _env_bool(name: str, default: bool) -> bool:

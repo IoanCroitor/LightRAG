@@ -1,0 +1,110 @@
+# EDW RAG: patched LightRAG API in front of a private native-hybrid Qdrant.
+#
+# Start: docker compose -f docker-compose.edw.yml up --build
+# Query: curl http://127.0.0.1:9621/query -H 'Content-Type: application/json' \
+#          -d '{"query":"..."}'
+#
+# This is intentionally a fresh deployment. It does not share the default
+# NanoVectorDB working directory and therefore does not migrate old vectors.
+services:
+  edw:
+    image: edw-rag:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - python
+      - -m
+      - edw_rag_patches.cli
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9621"
+    ports:
+      - "${EDW_HOST:-127.0.0.1}:${EDW_PORT:-9621}:9621"
+    env_file:
+      - .env
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "9621"
+      WORKING_DIR: /app/data/edw_rag_storage
+      INPUT_DIR: /app/data/edw_inputs
+      PROMPT_DIR: /app/data/prompts
+      LIGHTRAG_VECTOR_STORAGE: QdrantVectorDBStorage
+      QDRANT_URL: http://qdrant:6333
+      EMBEDDING_BINDING_HOST: http://tei-embed:80/v1
+      DOCLING_ENDPOINT: http://docling-serve:5001
+      EDW_QDRANT_HYBRID_ENABLED: "true"
+      # Turn on only while comparing dense, BM25, and fused result rankings.
+      EDW_QDRANT_HYBRID_DEBUG: "${EDW_QDRANT_HYBRID_DEBUG:-false}"
+    volumes:
+      - ./data/edw_rag_storage:/app/data/edw_rag_storage
+      - ./data/edw_inputs:/app/data/edw_inputs
+      - ./data/prompts:/app/data/prompts
+      - ./.env:/app/.env:ro
+      # The base image contains LightRAG; this supplies the EDW overlay.
+      - ./edw_rag_patches:/app/edw_rag_patches:ro
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      tei-embed:
+        condition: service_healthy
+      docling-serve:
+        condition: service_healthy
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    restart: unless-stopped
+
+  qdrant:
+    # v1.18 is the minimum version required to add a named sparse vector to an
+    # existing collection, and provides Qdrant's native BM25 inference model.
+    image: qdrant/qdrant:v1.18.0
+    volumes:
+      - edw_qdrant_storage:/qdrant/storage
+    healthcheck:
+      # The Qdrant image does not guarantee an HTTP client is installed.
+      # Port 6333 is Qdrant's REST listener (0x18BD in /proc/net/tcp).
+      test: ["CMD-SHELL", "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q ':18BD '"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+
+  tei-embed:
+    build:
+      context: .
+      dockerfile: Dockerfile.tei-cpu
+    command:
+      - --model-id
+      - "${EMBEDDING_MODEL:-nomic-ai/nomic-embed-text-v1.5}"
+      - --port
+      - "80"
+    volumes:
+      - tei_model_cache:/data
+    healthcheck:
+      test: ["CMD-SHELL", "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q ':0050 '"]
+      interval: 5s
+      timeout: 3s
+      retries: 120
+      start_period: 10s
+    restart: unless-stopped
+
+  docling-serve:
+    image: ghcr.io/docling-project/docling-serve:latest
+    command: ["docling-serve", "run"]
+    volumes:
+      - docling_models:/root/.cache/docling
+    healthcheck:
+      # Docling serves HTTP on port 5001 (0x1389 in /proc/net/tcp).
+      test: ["CMD-SHELL", "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q ':1389 '"]
+      interval: 5s
+      timeout: 3s
+      retries: 120
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  edw_qdrant_storage:
+  tei_model_cache:
+  docling_models:

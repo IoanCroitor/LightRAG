@@ -125,6 +125,21 @@ def apply_edw_rag_patches() -> None:
     # We must overwrite the local reference so ``to_query_params`` uses it.
     qr.QueryParam = lb.QueryParam
 
+    # -- 5c. Optional native Qdrant dense + BM25 hybrid retrieval ---------
+    from . import qdrant_hybrid
+
+    if qdrant_hybrid.enabled():
+        import lightrag.kg.qdrant_impl as qdrant_impl
+
+        _originals["qdrant_hybrid"] = (
+            qdrant_impl.QdrantVectorDBStorage,
+            qdrant_hybrid.apply_qdrant_hybrid_patch(
+                qdrant_impl.QdrantVectorDBStorage,
+                qdrant_impl.models,
+                lu.logger,
+            ),
+        )
+
     # -- 6. Patch aquery_llm to bubble citation_highlights up --------------
     _save("aquery_llm", ll.LightRAG, "aquery_llm")
     _orig_aql = ll.LightRAG.aquery_llm
@@ -352,6 +367,14 @@ def revert_edw_rag_patches() -> None:
                                 (qr, "QueryResponse")]:
         if orig_name in _originals:
             setattr(mod_name, orig_name, _originals.pop(orig_name))
+    qdrant_hybrid = _originals.pop("qdrant_hybrid", None)
+    if qdrant_hybrid:
+        storage_cls, originals = qdrant_hybrid
+        storage_cls.initialize = originals["initialize"]
+        storage_cls.upsert = originals["upsert"]
+        storage_cls.delete = originals["delete"]
+        storage_cls._flush_pending_vector_ops = originals["flush"]
+        storage_cls.query = originals["query"]
 
 
 def patch_app_routes(app: Any) -> None:

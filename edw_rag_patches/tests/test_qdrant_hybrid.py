@@ -127,6 +127,14 @@ class _Storage:
         for doc_id in ids:
             self._pending_vector_docs.pop(doc_id, None)
 
+    async def get_vectors_by_ids(self, _ids):
+        return {
+            "chunk-1": {
+                "": [0.1, 0.2],
+                "edw_bm25": {"indices": [1], "values": [0.7]},
+            }
+        }
+
     async def query(self, *_args, **_kwargs):
         return [{"legacy": True}]
 
@@ -136,6 +144,7 @@ def _restore(storage_cls, originals) -> None:
     storage_cls.upsert = originals["upsert"]
     storage_cls.delete = originals["delete"]
     storage_cls._flush_pending_vector_ops = originals["flush"]
+    storage_cls.get_vectors_by_ids = originals["get_vectors_by_ids"]
     storage_cls.query = originals["query"]
 
 
@@ -153,6 +162,7 @@ async def test_native_bm25_is_added_without_reembedding_dense_vectors(
     await storage.upsert({"chunk-1": {"content": "Exact project identifier ABC-123"}})
     await storage._flush_pending_vector_ops()
     result = await storage.query("ABC-123", top_k=2)
+    vectors = await storage.get_vectors_by_ids(["chunk-1"])
 
     assert storage._client.create_vector_name_calls[0]["vector_name"] == "edw_bm25"
     point = storage._client.update_vectors_calls[0]["points"][0]
@@ -161,6 +171,7 @@ async def test_native_bm25_is_added_without_reembedding_dense_vectors(
     assert len(query["prefetch"]) == 2
     assert query["query"].kwargs["fusion"] == "rrf"
     assert result == [{"id": "chunk-1", "created_at": 1, "distance": 0.42}]
+    assert vectors == {"chunk-1": [0.1, 0.2]}
     _restore(_Storage, originals)
 
 

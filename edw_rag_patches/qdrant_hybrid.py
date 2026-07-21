@@ -42,6 +42,7 @@ def apply_qdrant_hybrid_patch(
         "upsert": storage_cls.upsert,
         "delete": storage_cls.delete,
         "flush": storage_cls._flush_pending_vector_ops,
+        "get_vectors_by_ids": storage_cls.get_vectors_by_ids,
         "query": storage_cls.query,
     }
 
@@ -96,6 +97,33 @@ def apply_qdrant_hybrid_patch(
         if pending:
             for doc_id in ids:
                 pending.pop(doc_id, None)
+
+    async def get_vectors_by_ids(self, ids: list[str]) -> dict[str, list[float]]:
+        """Return dense embeddings when Qdrant returns a named-vector map.
+
+        Once a sparse vector exists, Qdrant's ``retrieve(with_vectors=True)``
+        may change an unnamed dense vector from ``[float, ...]`` to
+        ``{"": [float, ...], "edw_bm25": SparseVector(...)}``.  LightRAG's
+        similarity selector consumes only the dense list.
+        """
+        vectors = await originals["get_vectors_by_ids"](self, ids)
+        if not enabled():
+            return vectors
+
+        normalized: dict[str, list[float]] = {}
+        for doc_id, vector in vectors.items():
+            dense = _dense_vector(vector)
+            if dense is not None:
+                normalized[doc_id] = dense
+        if _debug_enabled() and len(normalized) != len(vectors):
+            logger.debug(
+                "[edw-rag] hybrid dense-vector normalization collection=%s "
+                "requested=%d usable=%d",
+                self.final_namespace,
+                len(vectors),
+                len(normalized),
+            )
+        return normalized
 
     async def query(
         self, query: str, top_k: int, query_embedding: list[float] | None = None
@@ -193,6 +221,7 @@ def apply_qdrant_hybrid_patch(
     storage_cls.upsert = upsert
     storage_cls.delete = delete
     storage_cls._flush_pending_vector_ops = flush
+    storage_cls.get_vectors_by_ids = get_vectors_by_ids
     storage_cls.query = query
     logger.info("[edw-rag] installed opt-in Qdrant dense + BM25 hybrid patch")
     return originals
@@ -283,6 +312,28 @@ def _log_hybrid_results(
         len(results),
         results,
     )
+
+
+def _dense_vector(value: Any) -> list[float] | None:
+    """Extract the dense embedding from Qdrant's single or named-vector form."""
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    if not isinstance(value, dict):
+        return None
+
+    # Qdrant uses an empty name for the pre-existing unnamed dense vector.
+    unnamed = value.get("")
+    if isinstance(unnamed, (list, tuple)):
+        return list(unnamed)
+
+    # Be tolerant of client/version representations without accidentally
+    # returning the configured sparse BM25 vector.
+    for vector_name, candidate in value.items():
+        if vector_name == _vector_name():
+            continue
+        if isinstance(candidate, (list, tuple)):
+            return list(candidate)
+    return None
 
 
 def _update_sparse_vectors(self: Any, docs: list[tuple[str, str]], models: Any) -> None:

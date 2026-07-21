@@ -9,6 +9,8 @@ What changes
 ------------
 - ``get_vector_context`` -- extracts ``positions`` from VDB results alongside content.
 - ``merge_all_chunks`` -- preserves ``positions`` through round-robin merge + dedup.
+- ``evidence_targets_from_chunk`` -- replaces chunk-level citation targets
+  with canonical parser-block text for the LLM.
 - ``convert_to_user_format`` -- detects positions on chunks, builds the
   ``citation_highlights`` sidecar inside ``data``.
 
@@ -28,6 +30,13 @@ from lightrag.base import (
     QueryParam,
 )
 from lightrag.utils import logger
+
+
+def evidence_targets_from_chunk(chunk: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return canonical parser blocks, not ambiguous chunk provenance IDs."""
+    from .sidecar import build_evidence_targets
+
+    return build_evidence_targets(chunk)
 
 
 # ---------------------------------------------------------------------------
@@ -165,10 +174,10 @@ async def merge_all_chunks(
                         "positions": chunk.get("positions"),  # ← preserved
                     })
 
-    # Backfill heading path (same as upstream)
-    if text_chunks_db and text_chunks_db.global_config.get(
-        "enable_content_headings", False,
-    ):
+    # Backfill durable provenance for every retrieved chunk. Headings are
+    # optional inside the helper, but block evidence cannot depend on the
+    # heading-display feature flag.
+    if text_chunks_db:
         await lo._attach_content_headings(merged_chunks, text_chunks_db)
 
     return merged_chunks

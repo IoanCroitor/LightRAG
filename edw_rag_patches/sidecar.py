@@ -34,7 +34,11 @@ needs to know which chunker was used.
 
 from __future__ import annotations
 
+import hashlib
+import re
+
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -152,7 +156,9 @@ def _get_chunk_positions(
                     if bid and bid in block_by_id:
                         blk = block_by_id[bid]
                         positions.extend(
-                            _normalize_positions(blk.get("positions") or [])
+                            _normalize_positions(
+                                blk.get("positions") or [], block_id=str(bid)
+                            )
                         )
 
     # --- Strategy 2: F/R/V -- _source_span char-offset overlap ----------
@@ -260,7 +266,9 @@ def _shared_text_length(a: str, b: str) -> int:
     return sum(len(w) for w in common)
 
 
-def _normalize_positions(raw_positions: list[dict]) -> list[dict]:
+def _normalize_positions(
+    raw_positions: list[dict], *, block_id: str | None = None
+) -> list[dict]:
     """Convert IR (intermediate-representation) position dicts as stored
     in ``blocks.jsonl`` into the compact citation-highlight format.
 
@@ -320,6 +328,8 @@ def _normalize_positions(raw_positions: list[dict]) -> list[dict]:
         origin = pos.get("origin")
         if origin:
             highlight["origin"] = origin  # "LEFTTOP" or "LEFTBOTTOM"
+        if block_id:
+            highlight["block_id"] = block_id
 
         if highlight:
             highlights.append(highlight)
@@ -357,6 +367,207 @@ def _load_blocks_jsonl(blocks_path: str) -> list[dict[str, Any]]:
     except OSError:
         return []
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Query-time evidence hydration
+# ---------------------------------------------------------------------------
+
+def build_evidence_targets(chunk: dict[str, Any]) -> list[dict[str, Any]]:
+    """Resolve a retrieved chunk's provenance to canonical, citeable blocks.
+
+    Chunks are useful for vector retrieval but can combine unrelated parser
+    blocks. The LLM must therefore see the canonical block text paired with a
+    compact evidence ID, rather than guessing which block inside chunk content
+    supports a claim.
+    """
+    document_id = str(chunk.get("document_id") or "").strip()
+    file_path = str(chunk.get("file_path") or "").strip()
+    sidecar = chunk.get("sidecar")
+    if not document_id or not file_path or not isinstance(sidecar, dict):
+        return []
+
+    refs = sidecar.get("refs")
+    if not isinstance(refs, list):
+        refs = [sidecar]
+    blocks = _blocks_by_id(file_path)
+    targets: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for ref in refs:
+        if not isinstance(ref, dict) or ref.get("type") != "block":
+            continue
+        block_id = str(ref.get("id") or "").strip()
+        block = blocks.get(block_id)
+        if not block or block_id in seen:
+            continue
+        seen.add(block_id)
+        text = str(block.get("content") or "").strip()
+        if not text:
+            continue
+        start = ref.get("start")
+        end = ref.get("end")
+        start = start if isinstance(start, int) and start >= 0 else 0
+        end = end if isinstance(end, int) and end >= start else len(text)
+        end = min(end, len(text))
+        evidence_text = text[start:end].strip()
+        if not evidence_text:
+            continue
+        targets.append(
+            {
+                "evidence_id": _evidence_id(document_id, block_id),
+                "document_id": document_id,
+                "file_path": file_path,
+                "section_id": "root",
+                "block_id": block_id,
+                "text": evidence_text,
+                "start": start,
+                "end": end,
+            }
+        )
+    return targets
+
+
+def build_evidence_map(chunks: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Return the allowed evidence IDs for a query, deduplicated by block."""
+    evidence: dict[str, dict[str, Any]] = {}
+    for chunk in chunks:
+        if not isinstance(chunk, dict):
+            continue
+        for target in build_evidence_targets(chunk):
+            evidence.setdefault(target["evidence_id"], target)
+    return evidence
+
+
+def references_from_evidence(
+    selectors: list[dict[str, str]], evidence_map: dict[str, dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Build public references from the canonical blocks selected by the LLM."""
+    references: list[dict[str, str]] = []
+    seen_documents: set[str] = set()
+    for selector in selectors:
+        document_id = selector.get("chunk_id", "")
+        block_id = selector.get("block_id", "")
+        if document_id in seen_documents:
+            continue
+        evidence = next(
+            (
+                item
+                for item in evidence_map.values()
+                if item.get("document_id") == document_id
+                and (not block_id or item.get("block_id") == block_id)
+            ),
+            None,
+        )
+        if not evidence:
+            continue
+        seen_documents.add(document_id)
+        references.append(
+            {
+                "reference_id": document_id,
+                "file_path": str(evidence["file_path"]),
+            }
+        )
+    return references
+
+
+def _blocks_by_id(file_path: str) -> dict[str, dict[str, Any]]:
+    """Load a document's canonical parser blocks for one query-time lookup."""
+    try:
+        from lightrag.utils_pipeline import parsed_artifact_dir_for
+
+        artifact_dir = parsed_artifact_dir_for(file_path)
+        candidates = sorted(artifact_dir.glob("*.blocks.jsonl"))
+    except Exception:
+        return {}
+    if not candidates:
+        return {}
+    blocks_path = candidates[0]
+    try:
+        mtime_ns = blocks_path.stat().st_mtime_ns
+    except OSError:
+        return {}
+    return _cached_blocks_by_id(str(blocks_path), mtime_ns)
+
+
+@lru_cache(maxsize=128)
+def _cached_blocks_by_id(
+    blocks_path: str, _mtime_ns: int
+) -> dict[str, dict[str, Any]]:
+    """Cache immutable parsed artifacts while invalidating after reprocessing."""
+    return {
+        str(block.get("blockid")): block
+        for block in _load_blocks_jsonl(blocks_path)
+        if block.get("blockid")
+    }
+
+
+def _evidence_id(document_id: str, block_id: str) -> str:
+    """Create a compact deterministic ID that the LLM may select."""
+    digest = hashlib.sha256(f"{document_id}\x1f{block_id}".encode()).hexdigest()
+    return f"e_{digest[:12]}"
+
+
+def render_structured_answer(
+    content: str, evidence_map: dict[str, dict[str, Any]]
+) -> tuple[str, list[dict[str, Any]]] | None:
+    """Validate the model's JSON answer and render server-owned citations.
+
+    The model is allowed to select only an ``evidence_id`` it received in the
+    prompt. Document IDs, parser block IDs, display indices, and inline
+    citation syntax are constructed here, never accepted from the model.
+    """
+    raw = content.strip()
+    if raw.startswith("```json") and raw.endswith("```"):
+        raw = raw[7:-3].strip()
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    segments = payload.get("segments") if isinstance(payload, dict) else None
+    if not isinstance(segments, list) or not segments:
+        return None
+
+    normalized: list[dict[str, Any]] = []
+    ordered_evidence: list[str] = []
+    for segment in segments:
+        if not isinstance(segment, dict):
+            return None
+        markdown = segment.get("markdown")
+        evidence_ids = segment.get("evidence_ids")
+        if (
+            not isinstance(markdown, str)
+            or not markdown.strip()
+            or "[^" in markdown
+            or not isinstance(evidence_ids, list)
+            or not all(isinstance(evidence_id, str) for evidence_id in evidence_ids)
+            or any(evidence_id not in evidence_map for evidence_id in evidence_ids)
+        ):
+            return None
+        ids = list(dict.fromkeys(evidence_ids))
+        normalized.append({"markdown": markdown.strip(), "evidence_ids": ids})
+        for evidence_id in ids:
+            if evidence_id not in ordered_evidence:
+                ordered_evidence.append(evidence_id)
+
+    display_index = {
+        evidence_id: index + 1
+        for index, evidence_id in enumerate(ordered_evidence)
+    }
+    rendered_segments: list[str] = []
+    for segment in normalized:
+        citations = "".join(
+            _citation_marker(display_index[evidence_id], evidence_map[evidence_id])
+            for evidence_id in segment["evidence_ids"]
+        )
+        rendered_segments.append(f"{segment['markdown']}{citations}")
+    return "\n\n".join(rendered_segments), normalized
+
+
+def _citation_marker(index: int, evidence: dict[str, Any]) -> str:
+    return (
+        f"[^{index}:{evidence['document_id']}§{evidence['section_id']}"
+        f"¶{evidence['block_id']}]"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -435,9 +646,36 @@ def build_citation_highlights(
         if not chunk_positions:
             continue  # skip chunks without position data
 
-        # Positions from enrich_chunks_with_positions are already in
-        # compact highlight format ({page, bbox, origin?}). Use as-is.
-        highlights = chunk_positions
+        # Give every visual rectangle a stable ID. The block-relative range
+        # identifies the cited source span; a per-block box ordinal keeps IDs
+        # unique when one block wraps across several lines/columns.
+        refs_by_block: dict[str, dict[str, Any]] = {}
+        sidecar = chunk.get("sidecar")
+        if isinstance(sidecar, dict):
+            for ref in sidecar.get("refs") or []:
+                if isinstance(ref, dict) and ref.get("type") == "block" and ref.get("id"):
+                    refs_by_block[str(ref["id"])] = ref
+
+        highlights: list[dict[str, Any]] = []
+        box_ordinals: dict[str, int] = {}
+        for position in chunk_positions:
+            if not isinstance(position, dict):
+                continue
+            highlight = position.copy()
+            block_id = str(highlight.get("block_id") or "")
+            source_ref = refs_by_block.get(block_id, {})
+            start = source_ref.get("start")
+            end = source_ref.get("end")
+            start = start if isinstance(start, int) and start >= 0 else 0
+            end = end if isinstance(end, int) and end >= start else 0
+            if block_id:
+                highlight["block_id"] = block_id
+                highlight["start"] = start
+                highlight["end"] = end
+                ordinal = box_ordinals.get(block_id, 0)
+                box_ordinals[block_id] = ordinal + 1
+                highlight["highlight_id"] = f"hl_{block_id}_{start}_{end}_{ordinal}"
+            highlights.append(highlight)
 
         if fp not in sources:
             sources[fp] = {
@@ -564,3 +802,323 @@ def build_citations_map(
         }
 
     return citations
+
+
+def parse_cited_ids(text: str) -> set[str]:
+    """Extract chunk IDs from legacy and block-level inline citations.
+
+    Block citations use ``[^Index:ChunkID§SectionID¶BlockID]``.  The numeric
+    index is display-only; filtering must use ``ChunkID`` because that is the
+    identifier stored on retrieved chunks and their highlight records.
+    """
+    cited: set[str] = set()
+    for match in re.finditer(r'\[\^([^\]]+)\]', text):
+        payload = match.group(1)
+        selector = payload.split(":", 1)[1] if ":" in payload else payload
+        chunk_id = selector.split("§", 1)[0].strip()
+        if chunk_id:
+            cited.add(chunk_id)
+    return cited
+
+
+def parse_citation_selectors(text: str) -> list[dict[str, str]]:
+    """Parse block-level inline citations in their answer order.
+
+    The returned selector retains the complete citation marker, making every
+    emitted visual highlight explicitly traceable to the claim that cited it.
+    Legacy ``[^ChunkID]`` citations intentionally have an empty ``block_id``.
+    """
+    selectors: list[dict[str, str]] = []
+    for match in re.finditer(r'\[\^([^\]]+)\]', text):
+        payload = match.group(1)
+        index, selector = (
+            payload.split(":", 1) if ":" in payload else ("", payload)
+        )
+        chunk_id, section_and_block = (
+            selector.split("§", 1) if "§" in selector else (selector, "")
+        )
+        section_id, block_id = (
+            section_and_block.split("¶", 1)
+            if "¶" in section_and_block
+            else (section_and_block, "")
+        )
+        chunk_id = chunk_id.strip()
+        if not chunk_id:
+            continue
+        selectors.append(
+            {
+                "citation_id": match.group(0),
+                "index": index.strip(),
+                "chunk_id": chunk_id,
+                "section_id": section_id.strip(),
+                "block_id": block_id.strip(),
+            }
+        )
+    return selectors
+
+
+def _highlight_block_from_sidecar(file_path: str, block_id: str) -> list[dict]:
+    """Resolve one cited parser block directly from its ``blocks.jsonl`` row.
+
+    This is the exact-query fallback for older vector records whose persisted
+    ``positions`` lack a ``block_id``. It does not use text matching and never
+    returns other blocks on the same page.
+    """
+    if not file_path or not block_id:
+        return []
+    try:
+        from lightrag.utils_pipeline import parsed_artifact_dir_for
+
+        artifact_dir = parsed_artifact_dir_for(file_path)
+        candidates = sorted(artifact_dir.glob("*.blocks.jsonl"))
+    except Exception:
+        return []
+    if not candidates:
+        return []
+
+    for block in _load_blocks_jsonl(str(candidates[0])):
+        if str(block.get("blockid") or "") != block_id:
+            continue
+        # A block-level citation selects the complete visual block. Character
+        # ranges can further refine this in a future citation grammar.
+        start = 0
+        end = len(str(block.get("content") or ""))
+        highlights = _normalize_positions(
+            block.get("positions") or [], block_id=block_id
+        )
+        for ordinal, highlight in enumerate(highlights):
+            highlight["start"] = start
+            highlight["end"] = end
+            highlight["highlight_id"] = f"hl_{block_id}_{start}_{end}_{ordinal}"
+        return highlights
+    return []
+
+
+def filter_to_cited(
+    citation_highlights: dict[str, Any] | None,
+    citations: dict[str, Any] | None,
+    references: list[dict[str, Any]] | None,
+    chunks: list[dict[str, Any]] | None,
+    cited_ids: set[str],
+    citation_selectors: list[dict[str, str]] | None = None,
+) -> tuple:
+    """Filter citation data to only the referenced content boxes.
+
+    Parameters
+    ----------
+    citation_highlights:
+        The ``citation_highlights`` sidecar (``{version, sources: {file: ...}}``).
+    citations:
+        The ``citations`` evidence map (``{ref_id: {evidence: [...]}}``).
+    references:
+        The ``references`` list (``[{reference_id, file_path, ...}]``).
+    chunks:
+        The ``data["chunks"]`` list (formatted chunk dicts).
+    cited_ids:
+        Set of reference_id strings actually cited by the LLM.
+
+    Returns
+    -------
+    tuple
+        ``(filtered_highlights, filtered_citations, filtered_references,
+        filtered_chunks)``.  ``None`` is returned for inputs that were
+        ``None``; empty collections for inputs that produced no matches.
+    """
+    selectors = citation_selectors or [
+        {
+            "citation_id": f"[^{chunk_id}]",
+            "index": "",
+            "chunk_id": chunk_id,
+            "section_id": "",
+            "block_id": "",
+        }
+        for chunk_id in cited_ids
+    ]
+
+    # --- highlights: keep only the block/range explicitly cited -----------
+    # The retrieval reference ID is usually a chunk ID, but the inline
+    # citation grammar also permits a durable document ID.  Keep the answer's
+    # selector as the public reference ID: it is the only ID a caller can use
+    # to relate ``references`` back to the answer without reverse-engineering
+    # a retrieved embedding chunk.
+    ch_filtered = None
+    selector_files: dict[str, list[str]] = {}
+    if citation_highlights:
+        sources = citation_highlights.get("sources") or {}
+        fs: dict[str, Any] = {}
+        sidecar_highlight_cache: dict[tuple[str, str], list[dict]] = {}
+        for fp, src in sources.items():
+            kept: list[dict[str, Any]] = []
+            for selector in selectors:
+                entry_key = (
+                    selector["chunk_id"],
+                    selector["section_id"],
+                    selector["block_id"],
+                )
+                if any(entry.get("_key") == entry_key for entry in kept):
+                    # A claim may cite a block more than once. One block entry
+                    # plus its list of rectangles is sufficient for the viewer.
+                    continue
+                # Prefer the parser block itself. This handles both new records
+                # (which carry ``block_id`` on every stored rectangle) and old
+                # records (which only have a chunk-wide position list).
+                block_id = selector["block_id"]
+                if block_id:
+                    cache_key = (fp, block_id)
+                    if cache_key not in sidecar_highlight_cache:
+                        sidecar_highlight_cache[cache_key] = _highlight_block_from_sidecar(
+                            fp, block_id
+                        )
+                    direct = sidecar_highlight_cache[cache_key]
+                    if direct:
+                        kept.append(
+                            {
+                                "_key": entry_key,
+                                "chunk_id": selector["chunk_id"],
+                                "reference_id": selector["chunk_id"],
+                                "citation_id": selector["citation_id"],
+                                "section_id": selector["section_id"],
+                                "block_id": block_id,
+                                # block_id/citation_id live on the containing
+                                # entry. Rectangles need only visual geometry.
+                                "highlights": _compact_highlights(direct),
+                            }
+                        )
+                        selector_files.setdefault(selector["chunk_id"], []).append(fp)
+                        continue
+                for chunk in src.get("chunks") or []:
+                    candidate_ids = {
+                        str(value)
+                        for value in (
+                            src.get("reference_id"),
+                            chunk.get("reference_id"),
+                            chunk.get("chunk_id"),
+                        )
+                        if value
+                    }
+                    if selector["chunk_id"] not in candidate_ids:
+                        continue
+                    highlighted = _compact_highlights(
+                        highlight
+                        for highlight in chunk.get("highlights") or []
+                        if not selector["block_id"]
+                        or str(highlight.get("block_id")) == selector["block_id"]
+                    )
+                    if highlighted:
+                        kept.append(
+                            {
+                                "_key": entry_key,
+                                "chunk_id": selector["chunk_id"],
+                                "reference_id": selector["chunk_id"],
+                                "citation_id": selector["citation_id"],
+                                "section_id": selector["section_id"],
+                                "block_id": selector["block_id"],
+                                "highlights": highlighted,
+                            }
+                        )
+                        selector_files.setdefault(selector["chunk_id"], []).append(fp)
+            if kept:
+                # ``_key`` was only used to deduplicate this response.
+                fs[fp] = {
+                    "file_path": src.get("file_path", fp),
+                    "chunks": [
+                        {key: value for key, value in entry.items() if key != "_key"}
+                        for entry in kept
+                    ],
+                }
+        ch_filtered = {"version": citation_highlights.get("version", 1), "sources": fs}
+
+    # --- citations map: keep only cited keys -----------------------------
+    cit_filtered: dict[str, Any] | None = None
+    if citations:
+        cit_filtered = {k: v for k, v in citations.items() if k in cited_ids}
+
+    # --- references list: keep only cited entries ------------------------
+    refs_filtered: list[dict[str, Any]] | None = None
+    if references is not None:
+        refs_filtered = []
+        seen_reference_ids: set[str] = set()
+        for selector in selectors:
+            selector_id = selector["chunk_id"]
+            if selector_id in seen_reference_ids:
+                continue
+            paths = selector_files.get(selector_id, [])
+            if not paths:
+                # Legacy/no-position fallback: retrieve the matching file from
+                # the normal reference list when the selector is a chunk ID.
+                paths = [
+                    str(ref.get("file_path", ""))
+                    for ref in references
+                    if str(ref.get("reference_id", "")) == selector_id
+                ]
+            if not paths:
+                continue
+            seen_reference_ids.add(selector_id)
+            original = next(
+                (
+                    ref
+                    for ref in references
+                    if str(ref.get("file_path", "")) == paths[0]
+                ),
+                {},
+            )
+            refs_filtered.append(
+                {
+                    **original,
+                    "reference_id": selector_id,
+                    "file_path": paths[0],
+                }
+            )
+
+    # --- chunks list: keep only cited entries ----------------------------
+    chunks_filtered: list[dict[str, Any]] | None = None
+    if chunks:
+        chunks_filtered = [
+            c for c in chunks
+            if str(c.get("reference_id", "")) in cited_ids
+        ]
+
+    return ch_filtered, cit_filtered, refs_filtered, chunks_filtered
+
+
+def _compact_highlights(highlights: Any) -> list[dict[str, Any]]:
+    """Return unique PDF rectangles without repeating block/span metadata.
+
+    ``highlight_id`` remains on each rectangle because it is the stable UI
+    identity. ``start`` and ``end`` remain too: they are the meaningful
+    block-relative character span selected by the citation. ``block_id`` and
+    the citation marker live on the surrounding cited-block entry, where they
+    apply to every rectangle in the list.
+    """
+    compact: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for highlight in highlights:
+        if not isinstance(highlight, dict):
+            continue
+        page = highlight.get("page", 1)
+        bbox = highlight.get("bbox") or {}
+        key = (str(page), json.dumps(bbox, sort_keys=True))
+        if key in seen:
+            continue
+        seen.add(key)
+        highlight_id = str(highlight.get("highlight_id") or "")
+        start = highlight.get("start")
+        end = highlight.get("end")
+        if (
+            not highlight_id
+            or not isinstance(start, int)
+            or not isinstance(end, int)
+        ):
+            # Citation-capable records must provide their stable ID and exact
+            # block-relative span. Do not synthesize compatibility data.
+            continue
+        compact.append(
+            {
+                "page": page,
+                "bbox": bbox,
+                "start": start,
+                "end": end,
+                "highlight_id": highlight_id,
+            }
+        )
+    return compact

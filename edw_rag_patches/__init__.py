@@ -24,6 +24,31 @@ _blocks_path_cv: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 def _save(name: str, mod: Any, attr: str) -> None:
     _originals[name] = getattr(mod, attr, None)
 
+def _generate_ref_list_per_chunk(
+    chunks: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    """Assign a unique reference_id per content box (chunk)."""
+    if not chunks:
+        return [], []
+    ref_list: list[dict] = []
+    updated: list[dict] = []
+    for i, chunk in enumerate(chunks):
+        c = chunk.copy()
+        rid = chunk.get("chunk_id") or str(i + 1)
+        c["reference_id"] = rid
+        updated.append(c)
+        fp = c.get("file_path", "")
+        content = (c.get("content") or "").strip()
+        label = content[:40].replace("\n", " ")
+        if len(content) > 40:
+            label += "…"
+        ref_list.append({
+            "reference_id": rid,
+            "file_path": fp,
+            "label": label,
+        })
+    return ref_list, updated
+
 
 # ===================================================================
 # Public API
@@ -61,6 +86,11 @@ def apply_edw_rag_patches() -> None:
                 self.chunks_vdb.meta_fields = set(self.chunks_vdb.meta_fields) | {"positions"}
 
     ll.LightRAG.__init__ = _rag_init_wrapper
+    # -- 1c. Assign per-chunk citation IDs instead of per-file -----------
+    _save("generate_reference_list_from_chunks", lu, "generate_reference_list_from_chunks")
+    lu.generate_reference_list_from_chunks = _generate_ref_list_per_chunk
+    _save("operate_generate_reference_list_from_chunks", lo, "generate_reference_list_from_chunks")
+    lo.generate_reference_list_from_chunks = _generate_ref_list_per_chunk
     # -- 2. Query pipeline: propagate positions through retrieval ----------
     from . import query_chain as qc
 
@@ -69,6 +99,9 @@ def apply_edw_rag_patches() -> None:
 
     _save("_merge_all_chunks", lo, "_merge_all_chunks")
     lo._merge_all_chunks = qc.merge_all_chunks
+
+    _save("_citation_targets_from_chunk", lo, "_citation_targets_from_chunk")
+    lo._citation_targets_from_chunk = qc.evidence_targets_from_chunk
 
     # -- 3. Response assembly: build citation_highlights sidecar -----------
     _save("convert_to_user_format", lu, "convert_to_user_format")
@@ -96,13 +129,75 @@ def apply_edw_rag_patches() -> None:
     _save("aquery_llm", ll.LightRAG, "aquery_llm")
     _orig_aql = ll.LightRAG.aquery_llm
 
-    async def _aql_wrapper(self, query: str, param=None, **kwargs):
+    async def _aql_wrapper(self, query: str, param=None, system_prompt=None, **kwargs):
+        if system_prompt is not None:
+            kwargs["system_prompt"] = system_prompt
         from lightrag.utils import logger
+        from .sidecar import (
+            build_evidence_map,
+            filter_to_cited,
+            parse_citation_selectors,
+            parse_cited_ids,
+            references_from_evidence,
+            render_structured_answer,
+        )
+
         result = await _orig_aql(self, query, param=param, **kwargs)
         data = result.get("data", {}) if isinstance(result, dict) else {}
+
         has_ch = isinstance(data, dict) and "citation_highlights" in data
-        logger.debug(f"[edw-rag] _aql_wrapper: result_keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}, "
-                     f"data_has_highlights={has_ch}")
+
+        llm_content = (result.get("llm_response") or {}).get("content") or ""
+        cited_ids = set()
+        citation_selectors: list[dict[str, str]] = []
+        evidence_map: dict[str, dict[str, Any]] = {}
+
+        if llm_content:
+            evidence_map = build_evidence_map(data.get("chunks") or [])
+            structured_answer = render_structured_answer(llm_content, evidence_map)
+            if not structured_answer:
+                logger.error(
+                    "[edw-rag] rejected non-structured LLM answer or unsent evidence ID"
+                )
+                llm_content = (
+                    "Sorry, I couldn't validate a grounded answer for this query."
+                )
+                data["structured_answer_error"] = "invalid_model_evidence"
+            else:
+                llm_content, answer_segments = structured_answer
+                data["answer_segments"] = answer_segments
+                cited_ids = parse_cited_ids(llm_content)
+                citation_selectors = parse_citation_selectors(llm_content)
+
+            if "llm_response" in result and isinstance(result["llm_response"], dict):
+                result["llm_response"]["content"] = llm_content
+
+        # Response provenance must describe the answer, not every chunk
+        # considered during retrieval. This also leaves ``references`` empty
+        # when the model supplied no inline citation at all.
+        if has_ch:
+            ch, cit, refs, cks = filter_to_cited(
+                data.get("citation_highlights"),
+                data.get("citations"),
+                data.get("references"),
+                data.get("chunks"),
+                cited_ids,
+                citation_selectors,
+            )
+            data["citation_highlights"] = ch
+            data["citations"] = cit
+            data["references"] = refs
+            data["chunks"] = cks
+            logger.debug(f"[edw-rag] filtered to {len(cited_ids)} cited box ids")
+
+        if llm_content:
+            # This is authoritative even when no PDF positions were stored:
+            # references describe blocks selected by the model, never the
+            # broader retrieval chunk set.
+            data["references"] = references_from_evidence(
+                citation_selectors, evidence_map
+            )
+
         if isinstance(data, dict) and "citation_highlights" in data:
             _citation_cv.set(data["citation_highlights"])
         return result
@@ -115,15 +210,32 @@ def apply_edw_rag_patches() -> None:
         _save(f"prompt_{key}", lp.PROMPTS, key)
         tmpl = lp.PROMPTS[key]
 
-        # Change instructions to use inline markers instead of footer section
-        tmpl = tmpl.replace(
-            "- Generate a references section at the end of the response.",
-            "- Use inline citation markers like [^N] immediately after the facts they support."
+        structured_marker = "EDW structured evidence response"
+        structured_instruction = (
+            "\n  - EDW structured evidence response: This replaces every inline-citation "
+            "and references-format instruction above. Return ONLY a valid JSON object; "
+            "do not use Markdown fences or inline citation markers. Its exact shape is "
+            '`{{"segments":[{{"markdown":"answer text","evidence_ids":["e_abc"]}}]}}`.\n'
+            "  - Each segment is one claim or tightly related supported passage. "
+            "Its `evidence_ids` must contain only IDs from the supplied `evidence` "
+            "objects (called `citation_targets` in naive mode); each is canonical "
+            "block evidence. The surrounding chunk `content`, if present, is "
+            "retrieval-only routing data and must not be used as evidence; use only "
+            "an evidence object's `text`. "
+            "Do not emit document IDs, chunk IDs, paths, block "
+            "IDs, page numbers, or citation syntax.\n"
+            "  - Cite every factual segment with one or more evidence IDs. For a "
+            "no-context response only, use an empty `evidence_ids` array.\n"
+            "  - The `markdown` string may use normal Markdown but must not contain "
+            "`[^`. The server validates evidence IDs and adds citations itself.\n"
         )
-        tmpl = tmpl.replace(
-            "Generate a **References** section at the end of the response.",
-            "Use inline citation markers like [^N] immediately after the facts they support."
-        )
+        if structured_marker not in tmpl:
+            structured_instruction = structured_instruction.replace(
+                "EDW structured evidence response", structured_marker
+            )
+            tmpl = tmpl.replace(
+                "---Context---", structured_instruction + "\n---Context---"
+            )
 
         old_ref = (
             "4. References Section Format:\n"
@@ -136,12 +248,15 @@ def apply_edw_rag_patches() -> None:
             "  - Do not generate footnotes section or any comment, summary, or explanation after the references.\n"
         )
         new_ref = (
-            "4. Inline Citations Format:\n"
-            '  - Use [^N] markers inline in your response, right after the fact they support, '
-            'e.g. "Amazon expanded EV charging in India[^1]."\n'
-            "  - When citing multiple sources at once, use adjacent markers: [^1][^2]\n"
-            "  - The reference_id in the marker must match an entry in the Reference Document List.\n"
-            "  - Do NOT generate a separate references section at the end.\n"
+            "4. Citations and References Format:\n"
+            "  - INLINE FORMAT: Cite your sources inline immediately after the claim, fact, or synthesized idea using this exact format: [^reference_id]\n"
+            "    - Example: Operating costs dropped significantly [^doc-XXX-chunk-000].\n"
+            "  - PDF HIGHLIGHTING (DIRECT CITATIONS): When you directly quote exact words or phrases from the PDF context, you must wrap the exact source text in <mark> tags, immediately followed by the citation format. The text inside the <mark> tags MUST be an exact substring match of the source text.\n"
+            "    - Example: The report states that <mark>net retention remained at 110%</mark> [^doc-XXX-chunk-000].\n"
+            "  - Only cite boxes whose information you DIRECTLY used to support a fact.\n"
+            "  - The References section should be under heading: `### References`\n"
+            "  - Reference list entries should adhere to the format: `- [reference_id] Document Title`.\n"
+            "  - Output each citation on an individual line.\n"
         )
         if old_ref in tmpl:
             tmpl = tmpl.replace(old_ref, new_ref)
@@ -157,10 +272,13 @@ def apply_edw_rag_patches() -> None:
             "```\n"
         )
         new_ex = (
-            "5. Inline Citation Example:\n"
+            "5. Citation and Reference Example:\n"
             "```\n"
-            "Amazon expanded EV charging in India[^1] through The Climate Pledge[^1][^2]. "
-            "The project aims for 100% renewable energy by 2030[^1].\n"
+            "Amazon expanded EV charging in India[^doc-1-chunk-0] "
+            "through <mark>The Climate Pledge</mark> [^doc-2-chunk-1].\n\n"
+            "### References\n\n"
+            "- [doc-1-chunk-0] Climate Pledge net-zero\n"
+            "- [doc-2-chunk-1] Renewable energy by 2030\n"
             "```\n"
         )
         if old_ex in tmpl:
@@ -173,17 +291,29 @@ def apply_edw_rag_patches() -> None:
     _orig_build_context_str = lo._build_context_str
 
     async def _build_context_str_wrapper(*args, **kwargs):
-
         result = await _orig_build_context_str(*args, **kwargs)
         if isinstance(result, tuple) and len(result) >= 1:
-            ctx = result[0]
-            import re
-            # Change [N] → [^N] in reference list entries (at line start)
-            ctx = re.sub(r'(?m)^\[(\d+)\] ', r'[^\1] ', ctx)
-            # Also change `reference_id` labels in chunk JSON to include ^
-            # e.g. "reference_id": "1" → "reference_id": "1" (leave as-is, but
-            # the [^N] in the ref list is the key visual cue for the LLM)
-            result = (ctx,) + result[1:]
+            from .sidecar import build_evidence_map
+            import json
+
+            raw_data = result[1] if len(result) > 1 else {}
+            data = raw_data.get("data", {}) if isinstance(raw_data, dict) else {}
+            evidence_map = build_evidence_map(data.get("chunks") or [])
+            if evidence_map:
+                # Do not show retrieval chunks, graph descriptions, file paths,
+                # or parser IDs to the LLM. It reasons only over canonical block
+                # text and selects compact, server-validated evidence IDs.
+                public_evidence = [
+                    {"evidence_id": item["evidence_id"], "text": item["text"]}
+                    for item in evidence_map.values()
+                ]
+                ctx = (
+                    "Canonical Evidence Blocks (the only factual source for the answer):\n"
+                    "```json\n"
+                    + json.dumps(public_evidence, ensure_ascii=False)
+                    + "\n```"
+                )
+                result = (ctx,) + result[1:]
         return result
 
     lo._build_context_str = _build_context_str_wrapper
@@ -208,6 +338,7 @@ def revert_edw_rag_patches() -> None:
         "process_single_document": (lpipe._PipelineMixin, "process_single_document"),
         "_get_vector_context": (lo, "_get_vector_context"),
         "_merge_all_chunks": (lo, "_merge_all_chunks"),
+        "_citation_targets_from_chunk": (lo, "_citation_targets_from_chunk"),
         "convert_to_user_format": (lu, "convert_to_user_format"),
         "operate_convert_to_user_format": (lo, "convert_to_user_format"),
         "lightrag_convert_to_user_format": (ll, "convert_to_user_format"),

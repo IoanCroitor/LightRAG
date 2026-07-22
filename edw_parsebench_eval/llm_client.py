@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import threading
 from typing import Optional
 
 from openai import OpenAI, APIError, RateLimitError
@@ -20,12 +21,23 @@ import config
 
 
 _client: Optional[OpenAI] = None
+_client_lock = threading.Lock()
 
 
 def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        _client = OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY)
+        with _client_lock:
+            if _client is None:
+                headers = {}
+                if "openrouter.ai" in config.LLM_BASE_URL:
+                    headers["HTTP-Referer"] = "https://github.com/HKUDS/LightRAG"
+                    headers["X-Title"] = "LightRAG ParseBench"
+                _client = OpenAI(
+                    base_url=config.LLM_BASE_URL,
+                    api_key=config.LLM_API_KEY,
+                    default_headers=headers if headers else None,
+                )
     return _client
 
 
@@ -87,8 +99,8 @@ def chat(
             }
             if max_tokens:
                 kwargs["max_tokens"] = max_tokens
-            # Qwen3 thinking consumes the token budget and can truncate JSON.
-            if not config.ENABLE_THINKING:
+            # Qwen3 thinking consumes token budget on GPUStack; disable only for non-OpenRouter endpoints.
+            if not config.ENABLE_THINKING and "openrouter.ai" not in config.LLM_BASE_URL:
                 kwargs["extra_body"] = {"enable_thinking": False}
             resp = client.chat.completions.create(**kwargs)
             content = resp.choices[0].message.content or ""

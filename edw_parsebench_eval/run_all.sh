@@ -18,31 +18,36 @@
 #   bash edw_parsebench_eval/run_all.sh [command]
 # ---------------------------------------------------------------------------
 set -euo pipefail
-cd "$(dirname "$0")/.."  # repo root
-
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 BIN="uv run python"
 
-case "${1:-all}" in
+CMD="${1:-all}"
+if [ $# -gt 0 ]; then
+  shift
+fi
+
+case "$CMD" in
   build-gt)
     echo "=== Build ground truth ==="
-    $BIN "$SCRIPT_DIR/build_ground_truth.py" --questions-per-doc 6 --overwrite
+    $BIN "$SCRIPT_DIR/build_ground_truth.py" --questions-per-doc 6 --overwrite "$@"
     ;;
   ingest)
     echo "=== Ingest corpus ==="
-    $BIN "$SCRIPT_DIR/ingest.py"
+    $BIN "$SCRIPT_DIR/ingest.py" "$@"
     ;;
   evaluate)
     echo "=== Evaluate ==="
-    $BIN "$SCRIPT_DIR/run_eval.py"
+    $BIN "$SCRIPT_DIR/run_eval.py" "$@"
     ;;
   all)
-    $0 build-gt
-    $0 ingest
-    $0 evaluate
+    $0 build-gt "$@"
+    $0 ingest "$@"
+    $0 evaluate "$@"
     ;;
   *)
-    echo "Usage: $0 [build-gt|ingest|evaluate|all]"
+    echo "Usage: $0 [build-gt|ingest|evaluate|all] [extra args...]"
     exit 1
     ;;
 esac

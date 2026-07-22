@@ -19,9 +19,13 @@ Outputs:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+from datetime import datetime, timezone
 import json
 import logging
 import sys
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +34,34 @@ from api_client import LightRAGClient
 import llm_client
 
 logger = logging.getLogger("parsebench.eval")
+
+
+def _configure_logging(log_path: Path, level_name: str) -> None:
+    """Send timestamped evaluation logs to both the console and a file."""
+    level = getattr(logging, level_name.upper())
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(name)s [%(threadName)s] %(message)s",
+        datefmt="%Y-%m-%dT%H:%M:%S",
+    )
+    console = logging.StreamHandler()
+    console.setFormatter(formatter)
+    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    logging.basicConfig(level=level, handlers=[console, file_handler], force=True)
+
+
+def _shorten(value: Any, limit: int = 180) -> str:
+    """Return a single-line, bounded diagnostic value for the log."""
+    text = " ".join(str(value or "").split())
+    return text if len(text) <= limit else f"{text[:limit - 1]}…"
+
+
+def _score(value: Any) -> float:
+    """Normalize judge scores so one malformed verdict cannot stop the run."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 # ---------------------------------------------------------------------------
 # Judge prompt
@@ -85,17 +117,33 @@ CITATION_PROBE_QUERIES = [
 def _check_citation_highlights(client: LightRAGClient) -> dict:
     """Best-effort probe for the EDW-RAG citation_highlights patch."""
     result: dict = {"present": False, "version_seen": None, "details": ""}
-    for q in CITATION_PROBE_QUERIES:
+    for probe_idx, q in enumerate(CITATION_PROBE_QUERIES, 1):
+        started = time.perf_counter()
         try:
+            logger.info(
+                "Citation probe %d/%d: %s",
+                probe_idx,
+                len(CITATION_PROBE_QUERIES),
+                _shorten(q),
+            )
             resp = client.query_data(q, mode="mix", include_citation_highlights=True)
             data = resp.get("data", {})
+            elapsed = time.perf_counter() - started
             if not data:
+                logger.warning(
+                    "Citation probe %d/%d returned no data (%.2fs).",
+                    probe_idx,
+                    len(CITATION_PROBE_QUERIES),
+                    elapsed,
+                )
                 continue
             if "citation_highlights" in data:
                 ch = data["citation_highlights"]
                 result["present"] = True
                 result["version_seen"] = ch.get("version")
                 result["details"] = f"Found citation_highlights v{result['version_seen']} in {len(ch.get('sources', {}))} source(s)."
+                result["probe"] = {"index": probe_idx, "query": q, "elapsed_s": round(elapsed, 3)}
+                logger.info("Citation probe succeeded in %.2fs: %s", elapsed, result["details"])
                 return result
             # Check in nested structure
             for key in ("response",):
@@ -104,12 +152,22 @@ def _check_citation_highlights(client: LightRAGClient) -> dict:
                     result["present"] = True
                     result["version_seen"] = ch.get("version")
                     result["details"] = f"Found inside response envelope."
+                    result["probe"] = {"index": probe_idx, "query": q, "elapsed_s": round(elapsed, 3)}
+                    logger.info("Citation probe succeeded in %.2fs: %s", elapsed, result["details"])
                     return result
         except Exception as exc:
             result["details"] = f"Probe failed: {exc}"
+            logger.warning(
+                "Citation probe %d/%d failed after %.2fs: %s",
+                probe_idx,
+                len(CITATION_PROBE_QUERIES),
+                time.perf_counter() - started,
+                exc,
+            )
             break
     if not result["present"]:
-        result["details"] = "No citation_highlights found in any probe query."
+        if not result["details"]:
+            result["details"] = "No citation_highlights found in any probe query."
     return result
 
 
@@ -153,15 +211,51 @@ def judge(question: str, reference: str, rag_response: str) -> dict:
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-citation-check", action="store_true", help="skip the EDW-RAG probe")
     ap.add_argument("--output-dir", type=Path, default=config.RESULTS_DIR)
+    ap.add_argument(
+        "--log-file",
+        type=Path,
+        help="write detailed run logs here (default: <output-dir>/evaluation.log)",
+    )
+    ap.add_argument(
+        "--log-level",
+        choices=("DEBUG", "INFO", "WARNING", "ERROR"),
+        default="INFO",
+        help="minimum log level for console and file output (default: INFO)",
+    )
     ap.add_argument("--max-questions", type=int, default=0, help="limit total questions (for testing)")
+    ap.add_argument(
+        "--workers",
+        "-w",
+        type=int,
+        default=config.EVAL_MAX_WORKERS,
+        help="number of parallel worker threads for querying and judging",
+    )
     args = ap.parse_args()
 
     RESULTS_DIR = args.output_dir
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = args.log_file or RESULTS_DIR / "evaluation.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    _configure_logging(log_path, args.log_level)
+
+    run_started_at = datetime.now(timezone.utc).isoformat()
+    run_started = time.perf_counter()
+    logger.info("Evaluation run started at %s", run_started_at)
+    logger.info(
+        "Configuration: server=%s mode=%s workers=%d judge_model=%s top_k=%s chunk_top_k=%s rerank=%s citation_highlights=%s",
+        config.LIGHTRAG_BASE_URL,
+        config.QUERY_MODE,
+        max(1, args.workers),
+        config.JUDGE_MODEL,
+        config.QUERY_TOP_K,
+        config.QUERY_CHUNK_TOP_K,
+        config.QUERY_ENABLE_RERANK,
+        config.INCLUDE_CITATION_HIGHLIGHTS,
+    )
+    logger.info("Detailed log: %s", log_path)
 
     client = LightRAGClient()
 
@@ -197,59 +291,148 @@ def main() -> int:
         logger.info("Citation highlights: %s", citation_info.get("details"))
 
     # Run evaluation
-    results: list[dict] = []
+    # Run evaluation (in parallel if workers > 1)
+    results_by_idx: dict[int, dict] = {}
     correct_count = 0
     total_score = 0.0
+    completed_count = 0
     n = len(all_qa)
+    workers = max(1, args.workers)
+    lock = threading.Lock()
 
-    logger.info("Evaluating %d questions (judge model: %s) ...", n, config.JUDGE_MODEL)
-    for idx, item in enumerate(all_qa, 1):
+    thread_local = threading.local()
+
+    def _get_worker_client() -> LightRAGClient:
+        if not hasattr(thread_local, "client"):
+            thread_local.client = LightRAGClient()
+        return thread_local.client
+
+    def _eval_one(idx: int, item: dict) -> tuple[int, dict, bool, float]:
         question = item["question"]
         reference = item["answer"]
+        c = _get_worker_client()
+        question_id = item.get("id", f"q{idx}")
+        started = time.perf_counter()
+        query_elapsed = 0.0
+        judge_elapsed = 0.0
+        query_error: str | None = None
+
+        logger.info(
+            "[%d/%d] START doc=%s question=%s text=%s",
+            idx,
+            n,
+            item["doc_id"],
+            question_id,
+            _shorten(question),
+        )
 
         try:
             # Query the RAG system
-            response = client.query(question, include_references=True)
+            query_started = time.perf_counter()
+            response = c.query(question, include_references=True)
+            query_elapsed = time.perf_counter() - query_started
             rag_text = response.get("response", "")
             refs = response.get("references", [])
         except Exception as exc:
+            query_elapsed = time.perf_counter() - started
+            query_error = f"{type(exc).__name__}: {exc}"
             rag_text = ""
             refs = []
-            logger.warning("[%d/%d] Query failed for '%s': %s", idx, n, question[:50], exc)
+            logger.warning("[%d/%d] Query failed after %.2fs: %s", idx, n, query_elapsed, query_error)
 
         # Judge
+        judge_started = time.perf_counter()
         verdict = judge(question, reference, rag_text)
+        judge_elapsed = time.perf_counter() - judge_started
 
-        is_correct = verdict.get("correct", False)
-        score = verdict.get("score", 0.0)
-        if is_correct:
-            correct_count += 1
-        total_score += score
+        is_correct = bool(verdict.get("correct", False))
+        score = _score(verdict.get("score"))
+        verdict["correct"] = is_correct
+        verdict["score"] = score
+        total_elapsed = time.perf_counter() - started
 
         entry: dict = {
             "doc_id": item["doc_id"],
-            "question_id": item.get("id", f"q{idx}"),
+            "question_id": question_id,
             "question": question,
             "reference_answer": reference,
             "rag_response": rag_text,
             "snippet": item.get("snippet", ""),
             "judge_verdict": verdict,
             "references": refs,
+            "timing": {
+                "query_s": round(query_elapsed, 3),
+                "judge_s": round(judge_elapsed, 3),
+                "total_s": round(total_elapsed, 3),
+            },
+            "query_error": query_error,
         }
-        results.append(entry)
+        logger.info(
+            "[%d/%d] DONE doc=%s question=%s correct=%s score=%.3f query=%.2fs judge=%.2fs total=%.2fs answer_chars=%d references=%d rationale=%s",
+            idx,
+            n,
+            item["doc_id"],
+            question_id,
+            bool(is_correct),
+            score,
+            query_elapsed,
+            judge_elapsed,
+            total_elapsed,
+            len(rag_text),
+            len(refs) if isinstance(refs, list) else 0,
+            _shorten(verdict.get("rationale")),
+        )
+        return idx, entry, is_correct, score
 
-        if idx % 10 == 0 or idx == n:
-            logger.info(
-                "[%d/%d] accuracy=%.0f%% avg_score=%.2f",
-                idx,
-                n,
-                correct_count / idx * 100,
-                total_score / idx,
-            )
+    logger.info("Evaluating %d questions with %d worker(s) (judge model: %s) ...", n, workers, config.JUDGE_MODEL)
 
+    if workers > 1:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = [
+                executor.submit(_eval_one, idx, item)
+                for idx, item in enumerate(all_qa, 1)
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                idx, entry, is_correct, score = future.result()
+                with lock:
+                    results_by_idx[idx] = entry
+                    completed_count += 1
+                    if is_correct:
+                        correct_count += 1
+                    total_score += score
+
+                    if completed_count % 10 == 0 or completed_count == n:
+                        logger.info(
+                            "[%d/%d] accuracy=%.0f%% avg_score=%.2f",
+                            completed_count,
+                            n,
+                            correct_count / completed_count * 100,
+                            total_score / completed_count,
+                        )
+    else:
+        for idx, item in enumerate(all_qa, 1):
+            idx, entry, is_correct, score = _eval_one(idx, item)
+            results_by_idx[idx] = entry
+            completed_count += 1
+            if is_correct:
+                correct_count += 1
+            total_score += score
+
+            if completed_count % 10 == 0 or completed_count == n:
+                logger.info(
+                    "[%d/%d] accuracy=%.0f%% avg_score=%.2f",
+                    completed_count,
+                    n,
+                    correct_count / completed_count * 100,
+                    total_score / completed_count,
+                )
+
+    results = [results_by_idx[i] for i in range(1, n + 1)]
     # Aggregate
+    run_elapsed = time.perf_counter() - run_started
     accuracy = (correct_count / n * 100) if n else 0.0
     avg_score = (total_score / n) if n else 0.0
+    query_error_count = sum(bool(result.get("query_error")) for result in results)
 
     # Per-doc breakdown
     doc_stats: dict[str, dict] = {}
@@ -283,6 +466,8 @@ def main() -> int:
         "judge_model": config.JUDGE_MODEL,
         "query_mode": config.QUERY_MODE,
         "citation_highlights": citation_info,
+        "query_error_count": query_error_count,
+        "elapsed_s": round(run_elapsed, 3),
         "documents": doc_summary,
     }
 
@@ -294,6 +479,12 @@ def main() -> int:
             "judge_model": config.JUDGE_MODEL,
             "llm_model": config.LLM_MODEL,
             "top_k": config.QUERY_TOP_K,
+            "chunk_top_k": config.QUERY_CHUNK_TOP_K,
+            "enable_rerank": config.QUERY_ENABLE_RERANK,
+            "workers": workers,
+            "server": config.LIGHTRAG_BASE_URL,
+            "run_started_at": run_started_at,
+            "log_file": str(log_path),
         },
         "citation_highlights": citation_info,
         "summary": summary,
@@ -314,6 +505,8 @@ def main() -> int:
         f"  Correct:              {correct_count} / {n}",
         f"  Accuracy:             {accuracy:.1f}%",
         f"  Average score:        {avg_score:.3f}",
+        f"  Query errors:         {query_error_count}",
+        f"  Elapsed:              {run_elapsed:.1f}s",
         "",
         "Per-document breakdown:",
         f"  {'Doc ID':<35s} {'Q':>3s} {'OK':>4s} {'Acc':>5s} {'Score':>6s}",
@@ -335,6 +528,14 @@ def main() -> int:
 
     summary_text = "\n".join(lines)
     summary_path.write_text(summary_text, encoding="utf-8")
+    logger.info(
+        "Evaluation completed: accuracy=%.1f%% avg_score=%.3f errors=%d elapsed=%.2fs. Results: %s",
+        accuracy,
+        avg_score,
+        query_error_count,
+        run_elapsed,
+        detailed_path,
+    )
     print("\n" + summary_text)
 
     return 0 if accuracy >= 50 else 1

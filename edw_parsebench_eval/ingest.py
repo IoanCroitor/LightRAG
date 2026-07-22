@@ -12,8 +12,10 @@ The default strategy uploads each PDF file individually via ``/documents/upload`
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import logging
 import sys
+import threading
 from pathlib import Path
 
 import config
@@ -29,8 +31,14 @@ def main() -> int:
     ap.add_argument("--scan", action="store_true", help="use /documents/scan instead of per-file upload")
     ap.add_argument("--timeout", type=float, default=1800.0, help="max seconds to wait for idle")
     ap.add_argument("--base-url", help="override LIGHTRAG_BASE_URL")
+    ap.add_argument(
+        "--workers",
+        "-w",
+        type=int,
+        default=config.INGEST_MAX_WORKERS,
+        help="number of parallel upload workers",
+    )
     args = ap.parse_args()
-
     client = LightRAGClient(base_url=args.base_url)
 
     if args.clear:
@@ -47,20 +55,37 @@ def main() -> int:
         resp = client.scan()
         logger.info("Scan: %s (track_id=%s)", resp.get("message", "ok"), resp.get("track_id", "?"))
     else:
-        # Upload each file individually.
+        # Upload files individually (in parallel if workers > 1).
         pdfs = sorted(config.CORPUS_DIR.glob("*.pdf"))
         if not pdfs:
             logger.error("No PDFs found in %s", config.CORPUS_DIR)
             return 1
-        logger.info("Uploading %d documents ...", len(pdfs))
-        for pdf in pdfs:
+        workers = max(1, args.workers)
+        logger.info("Uploading %d documents with %d worker(s) ...", len(pdfs), workers)
+
+        thread_local = threading.local()
+
+        def _get_worker_client() -> LightRAGClient:
+            if not hasattr(thread_local, "client"):
+                thread_local.client = LightRAGClient(base_url=args.base_url)
+            return thread_local.client
+
+        def _upload_one(pdf: Path) -> None:
+            c = _get_worker_client()
             try:
-                resp = client.upload_file(pdf)
+                resp = c.upload_file(pdf)
                 track_id = resp.get("track_id", "?")
                 logger.info("  %s -> %s [%s]", pdf.name, resp.get("status", "?"), track_id)
             except Exception as exc:
                 logger.error("  %s FAILED: %s", pdf.name, exc)
-                continue
+
+        if workers > 1:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = [executor.submit(_upload_one, pdf) for pdf in pdfs]
+                concurrent.futures.wait(futures)
+        else:
+            for pdf in pdfs:
+                _upload_one(pdf)
 
     logger.info("Waiting for pipeline to become idle (timeout=%ss) ...", args.timeout)
     try:

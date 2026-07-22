@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import logging
 import sys
@@ -135,6 +136,13 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="process only the first N PDFs")
     ap.add_argument("--overwrite", action="store_true", help="regenerate existing files")
     ap.add_argument("--questions-per-doc", type=int, default=config.QUESTIONS_PER_DOC)
+    ap.add_argument(
+        "--workers",
+        "-w",
+        type=int,
+        default=config.GT_MAX_WORKERS,
+        help="number of parallel worker threads",
+    )
     args = ap.parse_args()
 
     config.GROUND_TRUTH_DIR.mkdir(parents=True, exist_ok=True)
@@ -147,14 +155,49 @@ def main() -> int:
         return 1
 
     total = 0
+    pdfs_to_process: list[Path] = []
     for pdf in pdfs:
         out_path = config.GROUND_TRUTH_DIR / f"{pdf.stem}.json"
         if out_path.exists() and not args.overwrite:
             logger.info("%s: ground truth exists, skipping (use --overwrite)", pdf.name)
+            try:
+                data = json.loads(out_path.read_text(encoding="utf-8"))
+                total += len(data.get("questions", []))
+            except Exception:
+                pass
             continue
+        pdfs_to_process.append(pdf)
+
+    def _process_one(pdf: Path) -> int:
+        out_path = config.GROUND_TRUTH_DIR / f"{pdf.stem}.json"
         result = generate_for_pdf(pdf, args.questions_per_doc)
         out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-        total += len(result["questions"])
+        return len(result["questions"])
+
+    workers = max(1, args.workers)
+    if pdfs_to_process:
+        logger.info(
+            "Generating ground truth for %d document(s) with %d worker(s) ...",
+            len(pdfs_to_process),
+            workers,
+        )
+        if workers > 1:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+                future_to_pdf = {
+                    executor.submit(_process_one, pdf): pdf for pdf in pdfs_to_process
+                }
+                for future in concurrent.futures.as_completed(future_to_pdf):
+                    pdf = future_to_pdf[future]
+                    try:
+                        total += future.result()
+                    except Exception as exc:
+                        logger.error("%s: failed to generate ground truth: %s", pdf.name, exc)
+        else:
+            for pdf in pdfs_to_process:
+                try:
+                    total += _process_one(pdf)
+                except Exception as exc:
+                    logger.error("%s: failed to generate ground truth: %s", pdf.name, exc)
 
     logger.info("Done. %d Q&A pairs written across %d documents.", total, len(pdfs))
     return 0

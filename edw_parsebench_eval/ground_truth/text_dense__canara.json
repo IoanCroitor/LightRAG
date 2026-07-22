@@ -24,13 +24,13 @@
       "id": "q3",
       "question": "What is the face value of each equity share offered in the IPO?",
       "answer": "₹10 each",
-      "snippet": "THE FACE VALUE OF THE EQUITY SHARES IS ₹1 0 EACH."
+      "snippet": "THE FACE VALUE OF THE EQUITY SHARES IS ₹10 EACH."
     },
     {
       "id": "q4",
       "question": "What percentage of the offer is reserved for Retail Individual Investors?",
       "answer": "Not less than 35%",
-      "snippet": "Further, not less than 35% of the Offer shall be available for allocation to Retail Individual Investors (“ RIIs”)"
+      "snippet": "Further, not less than 35% of the Offer shall be available for allocation to Retail Individual Investors (“RIIs”)"
     },
     {
       "id": "q5",
@@ -42,7 +42,7 @@
       "id": "q6",
       "question": "On which stock exchanges has the company received in-principle approval for listing?",
       "answer": "BSE and NSE",
-      "snippet": "We have received in -principle approvals from BSE and NSE for the listing of the Equity Shares"
+      "snippet": "We have received in-principle approvals from BSE and NSE for the listing of the Equity Shares"
     }
   ]
 }

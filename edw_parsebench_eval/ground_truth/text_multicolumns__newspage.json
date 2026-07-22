@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_multicolumns__newspage",
+  "source_file": "text_multicolumns__newspage.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 7551
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Who is the deputy permanent secretary at the Ministry of Youth, Gender, Sport and Culture that spoke at the workshop?",
+      "answer": "Tebogo Matebesi",
+      "snippet": "deputy permanent secretary at the Ministry of Youth, Gender, Sport and Culture responsible for Library Archives Arts and Culture, Tebogo Matebesi has said."
+    },
+    {
+      "id": "q2",
+      "question": "What is the theme of the workshop aimed at empowering women in the creative space?",
+      "answer": "Empower Her",
+      "snippet": "Speaking at a one-day workshop in Gaborone held under the theme: Empower Her, he said women were an important part of the society"
+    },
+    {
+      "id": "q3",
+      "question": "On what date will Thari Ya Sechaba host a Jazz Festival featuring women artistes?",
+      "answer": "May 5",
+      "snippet": "She further said Thari Ya Sechaba will host a Jazz Festival on May 5, which would feature a lineup of women artistes across various genres"
+    },
+    {
+      "id": "q4",
+      "question": "How many heritage collection items has the national museum acquired?",
+      "answer": "Over 500,000",
+      "snippet": "He said the national museum had acquired over 500 000 of heritage collection of ethno-history, art, archaeology, monuments and cultural science specimen"
+    },
+    {
+      "id": "q5",
+      "question": "Which renowned World Heritage Site is located in the Ngamiland district?",
+      "answer": "Tsodilo",
+      "snippet": "one of which was a renowned World Heritage Site, Tsodilo in the Ngamiland district."
+    },
+    {
+      "id": "q6",
+      "question": "What is the name of the chairperson of the Mbanderu Youth Association of Botswana?",
+      "answer": "Ikumba Ngaruka",
+      "snippet": "The festival was organised by Mbanderu Youth Association of Botswana and its chairperson, Ikumba Ngaruka said their primary objective was to promote initiatives"
+    }
+  ]
+}

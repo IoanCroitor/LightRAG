@@ -171,6 +171,15 @@ def apply_qdrant_hybrid_patch(
                 _vector_name(),
                 len(query),
             )
+            logger.debug(
+                "[edw-rag] hybrid BM25 settings language=%s tokenizer=%s "
+                "ascii_folding=%s",
+                os.getenv("EDW_QDRANT_BM25_LANGUAGE", "none"),
+                os.getenv("EDW_QDRANT_BM25_TOKENIZER", "multilingual"),
+                _env_bool("EDW_QDRANT_BM25_ASCII_FOLDING", True),
+            )
+            if _log_query_text_enabled():
+                logger.debug("[edw-rag] hybrid query text=%r", query)
         try:
             response = self._client.query_points(
                 collection_name=self.final_namespace,
@@ -381,6 +390,11 @@ def _prefetch_multiplier() -> int:
 
 def _debug_enabled() -> bool:
     return _env_bool("EDW_QDRANT_HYBRID_DEBUG", False)
+
+
+def _log_query_text_enabled() -> bool:
+    """Allow raw query logging only when the operator explicitly opts in."""
+    return _env_bool("EDW_QDRANT_HYBRID_LOG_QUERY_TEXT", False)
 
 
 def _env_bool(name: str, default: bool) -> bool:

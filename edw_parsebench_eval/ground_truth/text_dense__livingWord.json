@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_dense__livingWord",
+  "source_file": "text_dense__livingWord.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 7037
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Who is the principal of St Teresa’s College in Abergowrie?",
+      "answer": "Michael Conn",
+      "snippet": "From Michael Conn, Principal St Teresa’s College, Abergowrie"
+    },
+    {
+      "id": "q2",
+      "question": "What was the College First XIII's final ranking at the Annual Confraternity Shield Rugby League Carnival?",
+      "answer": "11th out of 48 teams",
+      "snippet": "The college finished 11th out of 48 teams, which for a relatively small school was quite an achievement."
+    },
+    {
+      "id": "q3",
+      "question": "What was the theme for the year's NAIDOC celebrations mentioned in the excerpt?",
+      "answer": "“Because of her we can”",
+      "snippet": "This year’s NAIDOC theme “Because of her we can”, acknowledges not only Dr Evelyn Scott, but also all the Aboriginal and Torres Strait Islander women"
+    },
+    {
+      "id": "q4",
+      "question": "What is the email address for the Ingham Catholic parish office?",
+      "answer": "parishoffice@inghamcatholic.com",
+      "snippet": "parishoffice@inghamcatholic.com www.inghamcatholic.com facebook.com/inghamcatholic"
+    },
+    {
+      "id": "q5",
+      "question": "Which publishers hold the copyright for the scriptural quotations taken from the Jerusalem Bible?",
+      "answer": "Darton Longman and Todd Ltd and Doubleday & Co Inc",
+      "snippet": "The scriptural quotations are taken from the Jerusalem Bible, published and copyright 1966, 1967 and 1968 by Darton Longman and Todd Ltd and Doubleday & Co Inc"
+    },
+    {
+      "id": "q6",
+      "question": "In which year will the college welcome new families from Papua New Guinea following the August visit?",
+      "answer": "2019",
+      "snippet": "As a result of our visit the College is fortunate to welcome a number of new Papua New Guinea Families to St Teresa’s College in 2019."
+    }
+  ]
+}

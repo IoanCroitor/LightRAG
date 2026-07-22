@@ -88,7 +88,19 @@ edw_rag_patches/
 └── gunicorn.py        # entrypoint: edw-rag-gunicorn
 ```
 
-Every patch is **revertable** via `revert_edw_rag_patches()`. On upgrade:
+## Reliability TODO
+
+Before treating these patches as production-ready, address the following:
+
+- [ ] Preserve the exact upstream `LightRAG.aquery_llm` signature in its wrapper, including positional `system_prompt`, `progress_callback`, and the default `QueryParam` behavior.
+- [x] Patch application is idempotent. A second `apply_edw_rag_patches()` call is a no-op and cannot save a patched function as its own original.
+- [ ] Complete `revert_edw_rag_patches()`: restore patched prompts and the `query_routes.QueryParam` alias, as well as every other process-global mutation.
+- [ ] Replace the `_source_span` fallback that returns every document block with an offset-aware block intersection. If no reliable mapping is available, fall back to text overlap rather than emitting unrelated page overlays.
+- [ ] Honor `include_citation_highlights`. Generate and expose sidecars only when callers opt in, including a well-defined streaming response format.
+- [ ] Patch API response models before routes are built, or rebuild FastAPI response fields after patching existing routes so `citation_highlights` is not filtered during serialization.
+- [ ] Add regression tests for the wrapper signature, repeated apply/revert cycles, opt-in behavior, route serialization, and source-span position selection.
+
+`revert_edw_rag_patches()` currently restores only a subset of mutations; do not rely on it for a clean process reset until the TODOs above are complete. On upgrade:
 
 ```bash
 # 1. Update LightRAG
@@ -145,6 +157,25 @@ RERANK_BINDING_HOST=http://fdz2.edw.ro/v1
 RERANK_BINDING_API_KEY=your-key-here
 RERANK_BINDING_MODEL=qwen3-reranker-0.6b
 ```
+
+### Native Qdrant hybrid search diagnostics
+
+When native Qdrant hybrid search is enabled, set this only while diagnosing a
+query:
+
+```ini
+EDW_QDRANT_HYBRID_ENABLED=true
+EDW_QDRANT_HYBRID_DEBUG=true
+# Opt in only when query text is safe to write to application logs.
+EDW_QDRANT_HYBRID_LOG_QUERY_TEXT=true
+```
+
+At the application's `DEBUG` log level, every hybrid query logs its collection,
+workspace, limits, and the ranked `dense`, `bm25`, and fused-RRF result IDs and
+scores. Query text is excluded unless `EDW_QDRANT_HYBRID_LOG_QUERY_TEXT=true`;
+chunk text is always excluded. Debug mode makes two
+additional read-only Qdrant queries per request to expose the independent
+dense and BM25 rankings; disable it after review.
 
 ### 3. Run
 

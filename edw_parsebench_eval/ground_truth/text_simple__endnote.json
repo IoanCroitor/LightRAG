@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_simple__endnote",
+  "source_file": "text_simple__endnote.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 8358
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What is the title of the 2016 article by Henckens, Driessen, and Worrell regarding antimony?",
+      "answer": "How can we adapt to geological scarcity of antimony? Investigation of antimony’s substitutability and of other measures to achieve a sustainable use.",
+      "snippet": "How can we adapt to geological scarcity of antimony? Investigation of antimony’s substitutability and of other measures to achieve a sustainable use."
+    },
+    {
+      "id": "q2",
+      "question": "Which organization published the Mineral Commodity Summaries accessed in June 2022?",
+      "answer": "United States Geological Survey",
+      "snippet": "United States Geological Survey. Mineral Commodity Summaries [Internet]. Accessed June 29, 2022."
+    },
+    {
+      "id": "q3",
+      "question": "What compound is listed in the Fifteenth Edition of the Report on Carcinogens by the NTP and HHS?",
+      "answer": "Antimony Trioxide",
+      "snippet": "Report on Carcinogens, Fifteenth Edition: Antimony Trioxide."
+    },
+    {
+      "id": "q4",
+      "question": "Which 2021 EFSA Panel assessment covers the safety of titanium dioxide as a food additive?",
+      "answer": "Safety assessment of titanium dioxide (E171) as a food additive",
+      "snippet": "Safety assessment of titanium dioxide (E171) as a food additive EFSA Panel on Food Additives and Flavourings."
+    },
+    {
+      "id": "q5",
+      "question": "What is the main focus of the 2020 overview by van Hullebusch et al. regarding plastic waste management?",
+      "answer": "Enzymatic Remediation of Polyethylene Terephthalate (PET)-Based Polymers",
+      "snippet": "Enzymatic Remediation of Polyethylene Terephthalate (PET)-Based Polymers for Effective Management of Plastic Wastes: An Overview."
+    },
+    {
+      "id": "q6",
+      "question": "Which 1997 study by Gerber and Léonard investigated the mutagenicity, carcinogenicity, and teratogenicity of specific compounds?",
+      "answer": "Germanium compounds",
+      "snippet": "Mutagenicity, carcinogenicity and teratogenicity of germanium compounds."
+    }
+  ]
+}

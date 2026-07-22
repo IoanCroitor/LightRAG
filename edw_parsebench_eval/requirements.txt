@@ -1,0 +1,5 @@
+# ParseBench Eval Suite – runtime dependencies.
+# These are already present in the project's uv.lock; listed here for clarity.
+openai>=1.0
+pypdf>=5
+httpx>=0.25

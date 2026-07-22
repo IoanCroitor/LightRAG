@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_misc__2pages",
+  "source_file": "text_misc__2pages.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 9725
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Which leading chemical companies signed the April 2021 paper 'Towards Net Zero' identifying seven critical policy areas?",
+      "answer": "Air Liquide, BASF, Dow, Linde, and SABIC.",
+      "snippet": "The April 2021 paper Towards Net Zero signed by Air Liquide, BASF , Dow, Linde, and SABIC, among other leading chemical companies"
+    },
+    {
+      "id": "q2",
+      "question": "By what percentage did energy prices increase for many chemical companies since 2021, according to the UK Chemical Industry Association?",
+      "answer": "At least 500%.",
+      "snippet": "The UK Chemical Industry Association has reported that energy prices have increased by at least 500% for many companies since 2021"
+    },
+    {
+      "id": "q3",
+      "question": "According to an Ecofys study, how much could the chemical sector's contribution reduce emissions per annum up to 2030?",
+      "answer": "Over nine gigatons of carbon dioxide equivalent (GtCO2e).",
+      "snippet": "A study by Ecofys estimated the chemical sector’s contribution across key value chains could reduce emissions by over nine gigatons"
+    },
+    {
+      "id": "q4",
+      "question": "In which year did LyondellBasell first publish its sustainability disclosures and CDP reports?",
+      "answer": "2017.",
+      "snippet": "A LyondellBasell /f_irst published sustainability disclosures and CDP reports in 2017."
+    },
+    {
+      "id": "q5",
+      "question": "What was BASF's 2030 carbon emissions reduction target for Scopes 1 and 2 announced in March 2021?",
+      "answer": "Minus 25% compared with 2018.",
+      "snippet": "BASF announced 2050 net-zero carbon targets for Scopes 1 and 2 emissions and a new, more ambitious, 2030 carbon emissions reduction target for Scopes 1 and 2 (minus 25% compared with 2018"
+    },
+    {
+      "id": "q6",
+      "question": "What absolute carbon reduction target did Air Liquide announce for 2035 relative to 2020?",
+      "answer": "33%.",
+      "snippet": "The company also announced an absolute carbon reduction target of 33% by 2035 relative to 2020."
+    }
+  ]
+}

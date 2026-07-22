@@ -538,6 +538,7 @@ const state = {
   zoom: 0.85,
   tab: "response",
   active: null,
+  activeCitation: null,
   search: "",
   evidenceIndex: -1,
 };
@@ -552,6 +553,18 @@ const esc = (v) =>
     .replace(/'/g, "&#39;");
 
 // ── data accessors ─────────────────────────────────────────────────────────
+function getRefDisplayMap() {
+  const map = {};
+  const regex = /\[\^?([^\]]+)\]/g;
+  let match;
+  while ((match = regex.exec(response())) !== null) {
+    const id = match[1];
+    const colonIdx = id.indexOf(":");
+    if (colonIdx > -1) map[id.substring(colonIdx + 1)] = id.substring(0, colonIdx);
+  }
+  return map;
+}
+
 function data() {
   return state.json?.data || state.json || {};
 }
@@ -584,13 +597,23 @@ function allHighlights() {
   return Object.entries(sources()).flatMap(([file, s]) =>
     (s.chunks || []).flatMap((ch) =>
       (ch.highlights || []).map((h, index) => ({
-        ...h, file, refId: String(s.reference_id || ""), chunkId: ch.chunk_id || "", index,
+        ...h,
+        file,
+        refId: String(ch.reference_id || s.reference_id || ""),
+        chunkId: ch.chunk_id || "",
+        citationId: h.citation_id || ch.citation_id || "",
+        blockId: h.block_id || ch.block_id || "",
+        index,
       }))
     )
   );
 }
 function evidenceLabel(h) { return h.file + " · page " + (h.page || 1); }
-function highlightKey(h) { return h.file + "|" + (h.page || 1) + "|" + JSON.stringify(h.bbox || {}); }
+function highlightKey(h) {
+  return h.highlight_id
+    ? h.file + "|" + h.highlight_id
+    : h.file + "|" + (h.page || 1) + "|" + JSON.stringify(h.bbox || {});
+}
 
 // ── toast ──────────────────────────────────────────────────────────────────
 function notify(msg) {
@@ -605,9 +628,19 @@ function citeHtml(text) {
   if (!window.marked) return esc(text);
   let html = marked.parse(text);
   return html.replace(
-    /\[\^?(\d+)\]/g,
-    (_, id) =>
-      `<button class="citation ${state.active === id ? "selected" : ""}" data-ref="${esc(id)}">[${esc(id)}]</button>`
+    /\[\^?([^\]]+)\]/g,
+    (_, id) => {
+      let displayId = id;
+      let selector = id;
+      const colonIdx = id.indexOf(":");
+      if (colonIdx > -1) {
+        displayId = id.substring(0, colonIdx);
+        selector = id.substring(colonIdx + 1);
+      }
+      const chunkId = selector.split("§", 1)[0];
+      const citationId = `[^${id}]`;
+      return `<button class="citation ${state.activeCitation === citationId ? "selected" : ""}" data-ref="${esc(chunkId)}" data-citation="${esc(citationId)}">[${esc(displayId)}]</button>`;
+    }
   );
 }
 
@@ -649,6 +682,7 @@ function renderResponse(c) {
       rl
         .map((r) => {
           const id = String(r.reference_id ?? r.id ?? "");
+          const displayNum = getRefDisplayMap()[id] || id;
           return (
             '<div class="ref" data-ref="' +
               esc(id) +
@@ -656,7 +690,7 @@ function renderResponse(c) {
               esc((r.file_path || r.title || "").toLowerCase()) +
               '"' +
             '"><div class="ref-num">' +
-            esc(id || "?") +
+            esc(displayNum || "?") +
             '</div><div><div class="ref-title">' +
             esc(r.file_path || r.title || "Untitled source") +
             '</div><div class="ref-meta">' +
@@ -680,13 +714,14 @@ function renderRefList(rl) {
     rl
       .map((r) => {
         const id = String(r.reference_id ?? r.id ?? "");
+        const displayNum = getRefDisplayMap()[id] || id;
         return (
           '<div class="ref" data-ref="' +
           esc(id) +
           '" data-searchable="' +
           esc((r.file_path || r.title || "").toLowerCase()) +
           '"><div class="ref-num">' +
-          esc(id || "?") +
+          esc(displayNum || "?") +
           '</div><div><div class="ref-title">' +
           esc(r.file_path || r.title || "Untitled source") +
           '</div><div class="ref-meta">' +
@@ -703,17 +738,17 @@ function renderSources(c) {
   const allKeys = Object.keys(sources());
 
   // When a specific citation is active, only show its source
-  const keys = state.active && allKeys.length
+  const keys = state.activeCitation && allKeys.length
     ? allKeys.filter(fp => {
         const s = sources()[fp];
-        return (s.chunks || []).some(ch => ch.reference_id === state.active);
+        return (s.chunks || []).some(ch => ch.citation_id === state.activeCitation);
       })
     : allKeys;
 
   if (!keys.length) {
     const rl = refs();
     if (rl.length) {
-      if (state.active) {
+      if (state.activeCitation) {
         // Active citation but no matching source — render refs filtered
         const filtered = rl.filter(r => String(r.reference_id ?? r.id ?? "") === state.active);
         c.innerHTML = renderRefList(filtered.length ? filtered : rl);
@@ -758,7 +793,8 @@ function renderSources(c) {
               '<div class="chunk"' +
               (chunkText ? ' style="cursor:pointer"' : "") +
               ' data-chunk-id="' + esc(cid) + '"' +
-              ' data-ref="' + esc(ch.reference_id || "") + '">' +
+              ' data-ref="' + esc(ch.reference_id || "") + '"' +
+              ' data-citation="' + esc(ch.citation_id || "") + '">' +
               (chunkText
                 ? '<div class="chunk-text">' + esc(chunkText) + "</div>"
                 : "") +
@@ -770,7 +806,12 @@ function renderSources(c) {
                       return (
                         '<button title="' + esc(evidenceLabel({ ...h, file: fp })) +
                         '" class="highlight" data-highlight="' +
-                        esc(JSON.stringify({file: fp, page: h.page || 1, bbox: b})) +
+                        esc(JSON.stringify({
+                          file: fp, page: h.page || 1, bbox: b,
+                          highlight_id: h.highlight_id || "",
+                          citation_id: h.citation_id || ch.citation_id || "",
+                          block_id: h.block_id || ch.block_id || "",
+                        })) +
                         '">Page ' + (h.page || 1) + " · " +
                         Math.round(b.r ?? 0) + "×" + Math.round(b.b ?? 0) +
                         "</button>"
@@ -983,9 +1024,19 @@ async function renderPdf(targetPage) {
 // ── interaction ────────────────────────────────────────────────────────────
 function focusRef(id) {
   state.active = String(id);
+  state.activeCitation = null;
   state.tab = "sources";
   render();
   const h = allHighlights().find((x) => x.refId === String(id));
+  if (h) focusHighlight(h);
+}
+
+function focusCitation(citationId, chunkId) {
+  state.activeCitation = String(citationId);
+  state.active = String(chunkId || "");
+  state.tab = "sources";
+  render();
+  const h = allHighlights().find((x) => x.citationId === state.activeCitation);
   if (h) focusHighlight(h);
 }
 
@@ -1013,6 +1064,7 @@ function stepEvidence(delta) {
 function load(json, name) {
   state.json = json;
   state.active = null;
+  state.activeCitation = null;
   state.evidenceIndex = -1;
   $("#status").textContent = `Loaded · ${name}`;
   state.tab = "response";
@@ -1133,6 +1185,11 @@ $("#pdfFile").onchange = (e) => {
 
 // Click on citation buttons or reference cards
 $("#content").onclick = (e) => {
+  const citation = e.target.closest("[data-citation]");
+  if (citation?.dataset.citation) {
+    focusCitation(citation.dataset.citation, citation.dataset.ref);
+    return;
+  }
   const ref = e.target.closest("[data-ref]");
   if (ref) focusRef(ref.dataset.ref);
   const hit = e.target.closest("[data-highlight]");

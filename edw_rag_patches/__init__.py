@@ -12,12 +12,16 @@ from typing import Any
 
 _originals: dict[str, Any] = {}
 _orig_build_chunks_dict = None
+_applied = False
 
 _citation_cv: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
     "_edw_citation_highlights", default=None
 )
 _blocks_path_cv: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "_edw_blocks_path", default=None
+)
+_request_options_cv: contextvars.ContextVar[dict[str, bool] | None] = (
+    contextvars.ContextVar("_edw_request_options", default=None)
 )
 
 
@@ -50,6 +54,45 @@ def _generate_ref_list_per_chunk(
     return ref_list, updated
 
 
+def enrich_references_with_provenance(
+    references: list[dict[str, Any]],
+    chunks: list[dict[str, Any]],
+    *,
+    include_chunk_content: bool,
+) -> list[dict[str, Any]]:
+    """Build EDW API references without modifying the upstream router."""
+    by_reference: dict[str, list[dict[str, Any]]] = {}
+    for chunk in chunks:
+        reference_id = str(chunk.get("reference_id") or "")
+        if not reference_id:
+            continue
+        provenance = {
+            key: chunk[key]
+            for key in ("chunk_id", "document_id", "sidecar")
+            if chunk.get(key)
+        }
+        if provenance:
+            by_reference.setdefault(reference_id, []).append(provenance)
+
+    enriched: list[dict[str, Any]] = []
+    for reference in references:
+        item = reference.copy()
+        reference_id = str(reference.get("reference_id") or "")
+        if by_reference.get(reference_id):
+            item["provenance"] = by_reference[reference_id]
+        if include_chunk_content:
+            content = [
+                str(chunk["content"])
+                for chunk in chunks
+                if str(chunk.get("reference_id") or "") == reference_id
+                and chunk.get("content")
+            ]
+            if content:
+                item["content"] = content
+        enriched.append(item)
+    return enriched
+
+
 # ===================================================================
 # Public API
 # ===================================================================
@@ -57,7 +100,9 @@ def _generate_ref_list_per_chunk(
 
 def apply_edw_rag_patches() -> None:
     """Install all EDW-RAG patches.  Call once at startup."""
-    global _orig_build_chunks_dict
+    global _applied, _orig_build_chunks_dict
+    if _applied:
+        return
 
     import lightrag.utils_pipeline as lup
     import lightrag.operate as lo
@@ -65,6 +110,7 @@ def apply_edw_rag_patches() -> None:
     import lightrag.lightrag as ll
     import lightrag.base as lb
     import lightrag.pipeline as lpipe
+    import lightrag.sidecar.backfill as lbackfill
     import lightrag.api.routers.query_routes as qr
 
     # -- 1. Storage: enrich chunks with positions at insert time -----------
@@ -113,9 +159,11 @@ def apply_edw_rag_patches() -> None:
 
     # -- 4. Pipeline: bridge blocks_path to chunk assembly -----------------
     _patch_pipeline(lpipe)
+    _patch_sidecar_backfill(lbackfill)
 
     # -- 5. API models -----------------------------------------------------
     _patch_query_param(lb)
+    _patch_reference_model(qr)
     _patch_request_model(qr)
     _patch_response_model(qr)
 
@@ -124,6 +172,24 @@ def apply_edw_rag_patches() -> None:
     # module level.  That loads the ORIGINAL class before our patch above.
     # We must overwrite the local reference so ``to_query_params`` uses it.
     qr.QueryParam = lb.QueryParam
+
+    # ``naive_query`` can retrieve directly from the VDB, where durable parser
+    # metadata is intentionally absent. Scope its text-chunk storage around the
+    # existing upstream function so our patched vector lookup can hydrate it.
+    _save("naive_query", lo, "naive_query")
+    _orig_naive_query = lo.naive_query
+
+    async def _naive_query_wrapper(*args, **kwargs):
+        import inspect
+
+        bound = inspect.signature(_orig_naive_query).bind_partial(*args, **kwargs)
+        token = qc._naive_text_chunks_db.set(bound.arguments.get("text_chunks_db"))
+        try:
+            return await _orig_naive_query(*args, **kwargs)
+        finally:
+            qc._naive_text_chunks_db.reset(token)
+
+    lo.naive_query = _naive_query_wrapper
 
     # -- 5c. Optional native Qdrant dense + BM25 hybrid retrieval ---------
     from . import qdrant_hybrid
@@ -211,6 +277,19 @@ def apply_edw_rag_patches() -> None:
             # broader retrieval chunk set.
             data["references"] = references_from_evidence(
                 citation_selectors, evidence_map
+            )
+
+        # API route wrappers set these options before invoking the upstream
+        # endpoint.  Mutating the raw result here lets its normal JSON and
+        # NDJSON serializers retain EDW provenance without source edits.
+        request_options = _request_options_cv.get()
+        if request_options and request_options.get("include_references"):
+            data["references"] = enrich_references_with_provenance(
+                data.get("references") or [],
+                data.get("chunks") or [],
+                include_chunk_content=request_options.get(
+                    "include_chunk_content", False
+                ),
             )
 
         if isinstance(data, dict) and "citation_highlights" in data:
@@ -332,16 +411,19 @@ def apply_edw_rag_patches() -> None:
         return result
 
     lo._build_context_str = _build_context_str_wrapper
+    _applied = True
 
 
 def revert_edw_rag_patches() -> None:
     """Restore all original LightRAG code."""
+    global _applied
     import lightrag.utils_pipeline as lup
     import lightrag.operate as lo
     import lightrag.utils as lu
     import lightrag.lightrag as ll
     import lightrag.base as lb
     import lightrag.pipeline as lpipe
+    import lightrag.sidecar.backfill as lbackfill
     import lightrag.api.routers.query_routes as qr
 
     restore = {
@@ -353,17 +435,26 @@ def revert_edw_rag_patches() -> None:
         "process_single_document": (lpipe._PipelineMixin, "process_single_document"),
         "_get_vector_context": (lo, "_get_vector_context"),
         "_merge_all_chunks": (lo, "_merge_all_chunks"),
+        "naive_query": (lo, "naive_query"),
         "_citation_targets_from_chunk": (lo, "_citation_targets_from_chunk"),
         "convert_to_user_format": (lu, "convert_to_user_format"),
         "operate_convert_to_user_format": (lo, "convert_to_user_format"),
         "lightrag_convert_to_user_format": (ll, "convert_to_user_format"),
         "lightrag_init": (ll.LightRAG, "__init__"),
         "aquery_llm": (ll.LightRAG, "aquery_llm"),
+        "backfill_chunk_sidecars": (lbackfill, "backfill_chunk_sidecars"),
     }
     for name, (mod, attr) in restore.items():
         if name in _originals and _originals[name] is not None:
             setattr(mod, attr, _originals.pop(name))
-    for mod_name, orig_name in [(lb, "QueryParam"), (qr, "QueryRequest"),
+    # This helper does not exist in the upstream revision.  Remove the EDW
+    # attribute rather than retaining it after a revert cycle.
+    if "_citation_targets_from_chunk" in _originals:
+        _originals.pop("_citation_targets_from_chunk")
+        if hasattr(lo, "_citation_targets_from_chunk"):
+            delattr(lo, "_citation_targets_from_chunk")
+    for mod_name, orig_name in [(lb, "QueryParam"), (qr, "QueryParam"),
+                                (qr, "ReferenceItem"), (qr, "QueryRequest"),
                                 (qr, "QueryResponse")]:
         if orig_name in _originals:
             setattr(mod_name, orig_name, _originals.pop(orig_name))
@@ -375,6 +466,12 @@ def revert_edw_rag_patches() -> None:
         storage_cls.delete = originals["delete"]
         storage_cls._flush_pending_vector_ops = originals["flush"]
         storage_cls.query = originals["query"]
+    import lightrag.prompt as lp
+    for key in ("rag_response", "naive_rag_response"):
+        original = _originals.pop(f"prompt_{key}", None)
+        if original is not None:
+            lp.PROMPTS[key] = original
+    _applied = False
 
 
 def patch_app_routes(app: Any) -> None:
@@ -458,6 +555,87 @@ def _patch_pipeline(lpipe_module: Any) -> None:
     )
 
 
+def _patch_sidecar_backfill(backfill_module: Any) -> None:
+    """Install block-relative source spans without changing LightRAG files."""
+    _save("backfill_chunk_sidecars", backfill_module, "backfill_chunk_sidecars")
+
+    def _covered_block_refs(
+        spans: list[tuple[int, int, str]], o_start: int, o_end: int
+    ) -> list[dict[str, int | str]]:
+        covered: list[dict[str, int | str]] = []
+        seen: set[str] = set()
+        for start, end, block_id in spans:
+            if start < o_end and o_start < end and block_id and block_id not in seen:
+                seen.add(block_id)
+                overlap_start = max(start, o_start)
+                overlap_end = min(end, o_end)
+                covered.append(
+                    {
+                        "type": "block",
+                        "id": block_id,
+                        "start": overlap_start - start,
+                        "end": overlap_end - start,
+                    }
+                )
+        return covered
+
+    def _backfill_chunk_sidecars(
+        chunking_result: list[dict[str, Any]], blocks_path: str
+    ) -> None:
+        if not blocks_path:
+            return
+        try:
+            blocks = backfill_module._load_content_blocks(blocks_path)
+        except OSError as exc:
+            backfill_module.logger.warning(
+                f"[sidecar-backfill] cannot read blocks.jsonl at {blocks_path}: {exc}; "
+                "skipping sidecar backfill"
+            )
+            return
+
+        merged, spans = backfill_module._build_block_spans(blocks)
+        if not spans:
+            return
+
+        for chunk in chunking_result:
+            if not isinstance(chunk, dict):
+                continue
+            if backfill_module.normalize_chunk_sidecar(chunk) is not None:
+                continue
+            body = chunk.get("content", "")
+            if not isinstance(body, str) or not body.strip():
+                continue
+            source_span = backfill_module._chunk_source_span(chunk, merged)
+            if source_span is None:
+                if backfill_module._is_unlocatable(body):
+                    backfill_module.logger.warning(
+                        f"[sidecar-backfill] chunk #{chunk.get('chunk_order_index', -1)} "
+                        "contains replacement characters from a multi-byte token-boundary "
+                        "split; skipping provenance for it"
+                    )
+                    continue
+                raise backfill_module.ChunkBlockMatchError(
+                    chunk_order_index=int(chunk.get("chunk_order_index", -1)),
+                    chunk_preview=body,
+                    blocks_path=blocks_path,
+                )
+
+            covered = _covered_block_refs(spans, *source_span)
+            if not covered:
+                raise backfill_module.ChunkBlockMatchError(
+                    chunk_order_index=int(chunk.get("chunk_order_index", -1)),
+                    chunk_preview=body,
+                    blocks_path=blocks_path,
+                )
+            chunk["sidecar"] = {
+                "type": "block",
+                "id": covered[0]["id"],
+                "refs": covered,
+            }
+
+    backfill_module.backfill_chunk_sidecars = _backfill_chunk_sidecars
+
+
 def _patch_query_param(lb_module: Any) -> None:
     _save("QueryParam", lb_module, "QueryParam")
 
@@ -482,6 +660,21 @@ def _patch_request_model(qr_module: Any) -> None:
     qr_module.QueryRequest = _EDWRequest
 
 
+def _patch_reference_model(qr_module: Any) -> None:
+    from pydantic import Field
+
+    _save("ReferenceItem", qr_module, "ReferenceItem")
+    Base = qr_module.ReferenceItem
+
+    class _EDWReferenceItem(Base):  # type: ignore[valid-type,misc]
+        provenance: list[dict[str, Any]] | None = Field(
+            default=None,
+            description="Retrieved chunk/block provenance for EDW highlighting.",
+        )
+
+    qr_module.ReferenceItem = _EDWReferenceItem
+
+
 def _patch_response_model(qr_module: Any) -> None:
     from pydantic import Field
     from edw_rag_patches import _citation_cv
@@ -489,6 +682,10 @@ def _patch_response_model(qr_module: Any) -> None:
     Base = qr_module.QueryResponse
 
     class _EDWResponse(Base):  # type: ignore[valid-type,misc]
+        references: list[qr_module.ReferenceItem] | None = Field(
+            default=None,
+            description="Reference list, optionally with EDW block provenance.",
+        )
         citation_highlights: dict | None = Field(
             default_factory=lambda: _citation_cv.get(),
             description="Per-source chunk-level bbox/page highlights.")
@@ -504,7 +701,19 @@ def _patch_query_endpoint(route: Any) -> None:
     original_endpoint = route.endpoint
 
     async def _wrapped(request):
-        response = await original_endpoint(request)
+        request_options = {
+            "include_references": bool(
+                getattr(request, "include_references", False)
+            ),
+            "include_chunk_content": bool(
+                getattr(request, "include_chunk_content", False)
+            ),
+        }
+        token = _request_options_cv.set(request_options)
+        try:
+            response = await original_endpoint(request)
+        finally:
+            _request_options_cv.reset(token)
         highlights = _citation_cv.get()
         from lightrag.utils import logger
         logger.debug(f"[edw-rag] endpoint wrapper: highlights={'found' if highlights else 'None'}, "

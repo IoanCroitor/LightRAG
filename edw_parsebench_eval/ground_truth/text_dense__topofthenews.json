@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_dense__topofthenews",
+  "source_file": "text_dense__topofthenews.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 8833
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What are the two birds featured in this year's Deepavali light-up called?",
+      "answer": "Indian celestial swans known as “annapatchi”",
+      "snippet": "This year, the Deepavali light-up features two birds flanking the Happy Deepavali greeting in English and Tamil. The birds are Indian celestial swans known as “annapatchi”."
+    },
+    {
+      "id": "q2",
+      "question": "Who officially opened the new SilverCare Hub in Tampines?",
+      "answer": "Finance Minister and Tampines GRC MP Heng Swee Keat",
+      "snippet": "The hub, which was officially opened by Finance Minister and Tampines GRC MP Heng Swee Keat,"
+    },
+    {
+      "id": "q3",
+      "question": "Which four organizations partnered to establish the SilverCare Hub?",
+      "answer": "Changi General Hospital, St Andrew’s Senior Care, Eastern Community Health Centre, and Tampines Family Medicine Clinic",
+      "snippet": "is a partnership between CGH, St Andrew’s Senior Care (Tampines), the Eastern Commu- nity Health Centre and the Tampines Family Medicine Clinic."
+    },
+    {
+      "id": "q4",
+      "question": "How many medical conditions will the GPNext scheme initially cover?",
+      "answer": "14 medical conditions",
+      "snippet": "GPNext will initially cover 14 medical conditions, such as lower back pain, asthma and urinary tract infection."
+    },
+    {
+      "id": "q5",
+      "question": "How many partner GPs are involved in the Community Right Siting Programme today?",
+      "answer": "120 partner GPs",
+      "snippet": "Under the Community Right Sit- ing Programme, the number of partner GPs has increased from 10 in 2014 to 120 today."
+    },
+    {
+      "id": "q6",
+      "question": "What is the eventual goal of the SilverCare Hub's rehabilitation and treatment services for seniors?",
+      "answer": "Returning them back to health and active ageing",
+      "snippet": "The message is clear – we want to rehabilitate and provide treat- ment to our seniors with the even- tual goal of returning them back to health and active ageing."
+    }
+  ]
+}

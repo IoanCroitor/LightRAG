@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_dense__canara",
+  "source_file": "text_dense__canara.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 12000
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What was the original name of Canara Robeco Asset Management Company Limited before its name change?",
+      "answer": "Canbank Investment Management Services Limited",
+      "snippet": "Our Company was incorporated as “Canbank Investment Management Services Limited”, a public limited company"
+    },
+    {
+      "id": "q2",
+      "question": "Who are the promoters of the company?",
+      "answer": "Canara Bank and ORIX Corporation Europe N.V.",
+      "snippet": "OUR PROMOTERS: CANARA BANK AND ORIX CORPORATION EUROPE N.V."
+    },
+    {
+      "id": "q3",
+      "question": "What is the face value of each equity share offered in the IPO?",
+      "answer": "₹10 each",
+      "snippet": "THE FACE VALUE OF THE EQUITY SHARES IS ₹1 0 EACH."
+    },
+    {
+      "id": "q4",
+      "question": "What percentage of the offer is reserved for Retail Individual Investors?",
+      "answer": "Not less than 35%",
+      "snippet": "Further, not less than 35% of the Offer shall be available for allocation to Retail Individual Investors (“ RIIs”)"
+    },
+    {
+      "id": "q5",
+      "question": "Which investors are exempt from the mandatory ASBA process for this offer?",
+      "answer": "Anchor Investors",
+      "snippet": "Anchor Investors are not permitted to participate in the Offer through the ASBA process."
+    },
+    {
+      "id": "q6",
+      "question": "On which stock exchanges has the company received in-principle approval for listing?",
+      "answer": "BSE and NSE",
+      "snippet": "We have received in -principle approvals from BSE and NSE for the listing of the Equity Shares"
+    }
+  ]
+}

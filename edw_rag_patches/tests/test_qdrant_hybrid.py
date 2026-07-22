@@ -178,6 +178,7 @@ async def test_native_bm25_is_added_without_reembedding_dense_vectors(
 async def test_debug_mode_logs_dense_bm25_and_fused_rankings(monkeypatch) -> None:
     monkeypatch.setenv("EDW_QDRANT_HYBRID_ENABLED", "true")
     monkeypatch.setenv("EDW_QDRANT_HYBRID_DEBUG", "true")
+    monkeypatch.setenv("EDW_QDRANT_HYBRID_LOG_QUERY_TEXT", "true")
     messages: list[str] = []
     logger = SimpleNamespace(
         info=lambda _m: None,
@@ -194,5 +195,5 @@ async def test_debug_mode_logs_dense_bm25_and_fused_rankings(monkeypatch) -> Non
     assert any("branch=fused_rrf" in message for message in messages)
     assert any("branch=dense" in message for message in messages)
     assert any("branch=bm25" in message for message in messages)
-    assert all("ABC-123" not in message for message in messages)
+    assert any("hybrid query text='ABC-123'" in message for message in messages)
     _restore(_Storage, originals)

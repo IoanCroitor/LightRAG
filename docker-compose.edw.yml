@@ -41,7 +41,10 @@ services:
       - ./data/edw_rag_storage:/app/data/edw_rag_storage
       - ./data/edw_inputs:/app/data/edw_inputs
       - ./data/prompts:/app/data/prompts
-      - ./.env:/app/.env:ro
+      # Configuration enters through env_file above. Do not mount .env: the
+      # EDW CLI deliberately reloads it with override=True, which would
+      # replace internal Compose hostnames (for example docling-serve) with
+      # host-only values such as 127.0.0.1.
       # The base image contains LightRAG; this supplies the EDW overlay.
       - ./edw_rag_patches:/app/edw_rag_patches:ro
     depends_on:

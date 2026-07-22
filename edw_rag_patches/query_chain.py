@@ -21,6 +21,7 @@ alongside every other field and only used when present.
 
 from __future__ import annotations
 
+import contextvars
 from typing import Any
 
 from lightrag.base import (
@@ -30,6 +31,46 @@ from lightrag.base import (
     QueryParam,
 )
 from lightrag.utils import logger
+
+
+# ``naive_query`` does not pass text-chunk storage to ``_get_vector_context``.
+# The small scoped context below lets the patched vector lookup hydrate durable
+# provenance before upstream truncation/reranking, without copying the entire
+# upstream query implementation.
+_naive_text_chunks_db: contextvars.ContextVar[BaseKVStorage | None] = (
+    contextvars.ContextVar("_edw_naive_text_chunks_db", default=None)
+)
+
+
+async def hydrate_chunk_metadata(
+    chunks: list[dict[str, Any]], text_chunks_db: BaseKVStorage | None
+) -> None:
+    """Restore EDW provenance from authoritative ``text_chunks`` rows.
+
+    Upstream deliberately keeps vector results small.  EDW citations need the
+    stored ``full_doc_id`` and parser ``sidecar`` in addition to optional
+    heading breadcrumbs, so this wrapper performs that additive hydration.
+    """
+    if not chunks or text_chunks_db is None:
+        return
+
+    import lightrag.operate as lo
+
+    # Retain upstream heading behaviour exactly when it is configured.
+    if text_chunks_db.global_config.get("enable_content_headings", False):
+        await lo._attach_content_headings(chunks, text_chunks_db)
+
+    chunk_ids = [chunk.get("chunk_id") for chunk in chunks]
+    rows = await text_chunks_db.get_by_ids(chunk_ids)
+    for chunk, row in zip(chunks, rows):
+        if not isinstance(row, dict):
+            continue
+        sidecar = row.get("sidecar")
+        if isinstance(sidecar, dict) and sidecar:
+            chunk["sidecar"] = sidecar
+        document_id = row.get("full_doc_id")
+        if isinstance(document_id, str) and document_id:
+            chunk["document_id"] = document_id
 
 
 def evidence_targets_from_chunk(chunk: dict[str, Any]) -> list[dict[str, Any]]:
@@ -85,6 +126,8 @@ async def get_vector_context(
                     "positions": result.get("positions"),
                 }
                 valid_chunks.append(chunk_with_metadata)
+
+        await hydrate_chunk_metadata(valid_chunks, _naive_text_chunks_db.get())
 
         return valid_chunks
 
@@ -177,8 +220,7 @@ async def merge_all_chunks(
     # Backfill durable provenance for every retrieved chunk. Headings are
     # optional inside the helper, but block evidence cannot depend on the
     # heading-display feature flag.
-    if text_chunks_db:
-        await lo._attach_content_headings(merged_chunks, text_chunks_db)
+    await hydrate_chunk_metadata(merged_chunks, text_chunks_db)
 
     return merged_chunks
 
@@ -278,6 +320,12 @@ def convert_to_user_format(
                 if pos:
                     formatted_c["positions"] = pos
                     has_positions = True
+                # These fields are deliberately supplied by the patch, rather
+                # than changing LightRAG's public formatter.
+                for key in ("document_id", "sidecar"):
+                    value = orig_c.get(key)
+                    if value:
+                        formatted_c[key] = value
         if has_positions:
             highlights = build_citation_highlights(
                 chunks=formatted_chunks,

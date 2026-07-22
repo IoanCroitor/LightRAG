@@ -1,0 +1,7 @@
+# CPU-only Text Embeddings Inference image for the local embedding service.
+# The model is downloaded on first startup into the mounted /data volume.
+FROM ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+
+ENV HF_HOME=/data
+
+EXPOSE 80

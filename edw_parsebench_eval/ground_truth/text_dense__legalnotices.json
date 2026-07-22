@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_dense__legalnotices",
+  "source_file": "text_dense__legalnotices.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 12000
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "On what date is the Primary Election scheduled to be held in New Mexico?",
+      "answer": "June 5, 2012",
+      "snippet": "That a Primary Election is called to be held throughout the State of New Mexico and in each county and precinct thereof on June 5, 2012;"
+    },
+    {
+      "id": "q2",
+      "question": "Which New Mexico Governor issued the Primary Election Proclamation?",
+      "answer": "Susana Martinez",
+      "snippet": "I, Susana Martinez, Governor of the State of New Mexico, by virtue of the authority vested in me, do hereby issue the following proclamation:"
+    },
+    {
+      "id": "q3",
+      "question": "Where will the public hearing for Liquor License Application A-801939 take place?",
+      "answer": "Commission Chambers on the 1st floor of the Doña Ana County Government Center",
+      "snippet": "in the Commission Chambers on the 1st floor of the Doña Ana County Government Center, 845 N. Motel Blvd., Las Cruces NM,"
+    },
+    {
+      "id": "q4",
+      "question": "On what date will the City Council of Las Cruces hold its regular meeting to adopt the listed ordinances?",
+      "answer": "March 5, 2012",
+      "snippet": "at a Regular City Council Meeting to be Held on March 5, 2012:"
+    },
+    {
+      "id": "q5",
+      "question": "Which county's precincts compose District 1 of the Public Education Commission?",
+      "answer": "Bernalillo county",
+      "snippet": "District 1: composed of Bernalillo county precincts 20 through 30,"
+    },
+    {
+      "id": "q6",
+      "question": "Who is the Trust Administrator for the Zia Trust, Inc. notice regarding Jon Wynne's estate?",
+      "answer": "Marianne Gillespie",
+      "snippet": "BY: /s/ MARIANNE GILLESPIE Trust Administrator"
+    }
+  ]
+}

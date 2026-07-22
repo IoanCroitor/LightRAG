@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_simple__share",
+  "source_file": "text_simple__share.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 8132
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "By what time must electronic proxies be received for the Court Meeting?",
+      "answer": "1.00 p.m. on 20 May 2024.",
+      "snippet": "received by not later than 1.00 p.m. on 20 May 2024 in the case of the Court Meeting"
+    },
+    {
+      "id": "q2",
+      "question": "Are Forms of Proxy returned by fax accepted?",
+      "answer": "No, they will not be accepted.",
+      "snippet": "Forms of Proxy returned by fax will not be accepted."
+    },
+    {
+      "id": "q3",
+      "question": "What is the deadline for Virgin Money Share Account Holders to submit voting instructions for the General Meeting?",
+      "answer": "1.15 p.m. on 15 May 2024.",
+      "snippet": "received by the Equiniti Nominee by no later than 1.00 p.m. and 1.15 p.m. on 15 May 2024 (in the case of the Court Meeting and the General Meeting, respectively)"
+    },
+    {
+      "id": "q4",
+      "question": "Which option must CDI Holders select to attend and vote in person at the Shareholder Meetings?",
+      "answer": "Option B.",
+      "snippet": "In order to attend and vote in person at the Shareholder Meetings, you must choose Option B of the relevant CDI V oting Instruction Form"
+    },
+    {
+      "id": "q5",
+      "question": "On which website can the document be accessed for Virgin Money shareholders?",
+      "answer": "www.virginmoneyukplc.com/investor-relations/announcements/",
+      "snippet": "on Virgin Money ’s website at www.virginmoneyukplc.com/investor-relations/ announcements/"
+    },
+    {
+      "id": "q6",
+      "question": "What are the operating hours for Computershare's phone lines for Virgin Money Ordinary Shareholders?",
+      "answer": "8.30 a.m. to 5.30 p.m. (London time), Monday to Friday.",
+      "snippet": "Phone lines are open between 8.30 a.m. and 5.30 p.m. (London time), Monday to Friday (excluding public holidays in England and Wales)."
+    }
+  ]
+}

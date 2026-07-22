@@ -1,0 +1,48 @@
+{
+  "doc_id": "text_multicolumns__ads",
+  "source_file": "text_multicolumns__ads.pdf",
+  "num_pages": 1,
+  "generator": {
+    "model": "qwen3.6-35b-a3b-fast",
+    "questions_requested": 6,
+    "extracted_chars": 12000
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Who should be contacted for more information about the set construction for Last Summer at Bluefish Cove?",
+      "answer": "Ronda Roush",
+      "snippet": "For more information, please contact Ronda Roush at LiturgicalTheatre@ResurrectionMCC.org or 281-570-7774."
+    },
+    {
+      "id": "q2",
+      "question": "Where will the Friday Night Out event on October 12 be held?",
+      "answer": "Patrenellas Italian Restaurant",
+      "snippet": "Patrenellas Italian Restaurant 813 Jackson Hill St, Houston, TX 77007"
+    },
+    {
+      "id": "q3",
+      "question": "What is the cost per person for the October 19 bowling event?",
+      "answer": "$15",
+      "snippet": "Cost is $15 per person, which includes two hours of bowling and rental of ball and shoes."
+    },
+    {
+      "id": "q4",
+      "question": "What did Sobia Siddiqui do in 2016 regarding Syrian refugees?",
+      "answer": "She taught English to Syrian refugee families in Houston",
+      "snippet": "In 2016 Sobia spent six months teaching English to Syrian refugee families in Houston."
+    },
+    {
+      "id": "q5",
+      "question": "What is Tarek Abuata's current position?",
+      "answer": "Executive Director of Friends of Sabeel North America",
+      "snippet": "Currently, Abuata serves as the Executive Director of Friends of Sabeel North America."
+    },
+    {
+      "id": "q6",
+      "question": "From which university did Darnell Fennell receive his Bachelor of Science degree?",
+      "answer": "University of Houston",
+      "snippet": "In 2011 he received a Bachelor of Science in Psychology and Religious Studies from the University of Houston"
+    }
+  ]
+}

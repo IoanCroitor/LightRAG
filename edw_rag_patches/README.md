@@ -106,8 +106,8 @@ Before treating these patches as production-ready, address the following:
 # 1. Update LightRAG
 uv sync --extra api
 
-# 2. Run tests -- 1700+ tests check patch compatibility
-uv run pytest tests/chunker/ tests/sidecar/ -q
+# 2. Run the isolated EDW patch regressions
+./edw_rag_patches/ci/run_edw_pipeline.sh patch-tests
 
 # 3. If a test fails, fix the signature drift in the corresponding
 #    patch function -- no LightRAG source files were ever touched.
@@ -268,12 +268,8 @@ assert lup.build_chunks_dict_from_chunking_result.__module__ == 'edw_rag_patches
 print('Patches OK')
 "
 
-# Full test suite with patches active (1800+ tests)
-uv run python -c "
-from edw_rag_patches import apply_edw_rag_patches
-apply_edw_rag_patches()
-" && uv run pytest tests/chunker/ tests/parser/ tests/sidecar/ -q \
-  -m 'not integration and not requires_db'
+# Full EDW patch regression suite
+./edw_rag_patches/ci/run_edw_pipeline.sh patch-tests
 
 # Functional test: sidecar JSON generation
 uv run python -c "
@@ -295,15 +291,51 @@ print('Functional test OK')
 
 ## CI/CD (GitLab)
 
-`.gitlab-ci.yml` provides 5 stages:
+`.gitlab-ci.yml` verifies monkey-patch targets in the process that installs
+them. EDW patch tests live exclusively in `edw_rag_patches/tests/` and begin
+unpatched so they can test apply/revert cycles themselves.
 
-| Stage | Job | What it catches |
-|-------|-----|-----------------|
-| `lint` | `ruff-lint` | Code style |
-| `test` | `patches-unit-test` | Patch integrity (will fail on upstream signature drift) |
-| `test` | `core-tests` | 1800+ tests with patches active |
-| `test-full` | `full-test` | Full offline suite |
-| `demo` | `demo-pipeline` | E2E with GPUStack (gated on `GPU_STACK_API_KEY` secret) |
+| Stage | Job | When it runs |
+|-------|-----|--------------|
+| `lint` | `ruff-lint` | Every branch and merge-request pipeline |
+| `test` | `patch-tests` | Focused EDW patch regressions |
+| `integration` | `parsebench` | Only with `RUN_PARSEBENCH=true` |
+
+Run the same jobs locally after `uv sync --extra test`:
+
+```bash
+./edw_rag_patches/ci/run_edw_pipeline.sh lint
+./edw_rag_patches/ci/run_edw_pipeline.sh patch-tests
+```
+
+### Optional ParseBench integration
+
+`parsebench` is intentionally disabled by default. When enabled, GitLab builds
+an image containing the current EDW patch overlay, starts it as the disposable
+`lightrag` service, and targets `http://lightrag:9621` over the job network.
+It clears and re-ingests that service; it does not contact a production server.
+Configure the following masked GitLab variables, then start a pipeline with
+`RUN_PARSEBENCH=true`:
+
+| Variable | Purpose |
+|----------|---------|
+| `LIGHTRAG_LLM_BASE_URL`, `LIGHTRAG_LLM_API_KEY`, `LIGHTRAG_LLM_MODEL` | LLM configuration for the in-CI LightRAG service |
+| `LIGHTRAG_EMBEDDING_BASE_URL`, `LIGHTRAG_EMBEDDING_API_KEY`, `LIGHTRAG_EMBEDDING_MODEL`, `LIGHTRAG_EMBEDDING_DIM` | Embedding configuration for the in-CI LightRAG service |
+| `LIGHTRAG_API_KEY` | Optional API key when authentication is enabled on the service |
+| `LLM_API_KEY` or `OPENROUTER_API_KEY` | Ground-truth answer judge credential |
+| `LLM_BASE_URL`, `LLM_MODEL`, `JUDGE_MODEL` | Optional judge endpoint/model overrides |
+
+The job first clears the target server's in-memory and persistent LLM cache,
+then uploads the versioned corpus, evaluates against the versioned ground
+truth, checks citation highlights, and publishes `artifacts/parsebench/` even
+when evaluation fails. To run it locally against a server already started with
+the EDW patches:
+
+```bash
+export LIGHTRAG_BASE_URL=http://127.0.0.1:9621
+export LLM_API_KEY=...  # or OPENROUTER_API_KEY
+./edw_rag_patches/ci/run_edw_pipeline.sh parsebench
+```
 
 ---
 
@@ -381,10 +413,11 @@ print('All patches intact after upgrade')
 | `edw_rag_patches/query_chain.py` | Query pipeline patches: `get_vector_context()`, `merge_all_chunks()`, `convert_to_user_format()`. |
 | `edw_rag_patches/cli.py` | Single-process server entrypoint. Usage: `uv run python -m edw_rag_patches.cli` |
 | `edw_rag_patches/gunicorn.py` | Multi-worker production entrypoint. Usage: `uv run python -m edw_rag_patches.gunicorn` |
+| `edw_rag_patches/ci/` | Isolated GitLab/local CI helpers for EDW patch verification and ParseBench. |
+| `edw_rag_patches/tests/` | EDW patch regression tests. |
 | `examples/edw_rag_demo.py` | Pipeline comparison demo (with/without patches). |
 | `.env` | GPUStack configuration for Qwen models. |
 | `.gitlab-ci.yml` | CI/CD pipeline with patch integrity checks. |
-| `tests/` | 1800+ tests (all pass with patches active). |
 
 ## Requirements
 

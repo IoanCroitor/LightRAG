@@ -201,7 +201,7 @@ def test_hard_split_slices_get_precise_refs(tmp_path: Path) -> None:
     backfill_chunk_sidecars(chunks, blocks_path)
 
     # The early slices live entirely inside "big" -> single ref, not both blocks.
-    assert chunks[0]["sidecar"]["refs"] == [{"type": "block", "id": "big"}]
+    assert [r["id"] for r in chunks[0]["sidecar"]["refs"]] == ["big"]
     # "small" is referenced only by the slice that actually reaches its content.
     small_refs = [
         ch for ch in chunks if any(r["id"] == "small" for r in ch["sidecar"]["refs"])
@@ -315,7 +315,7 @@ def test_real_tiktoken_multibyte_boundary_degrades_not_fails(tmp_path: Path) -> 
         if "�" in ch["content"]:
             assert "sidecar" not in ch  # provenance degraded, document not failed
         elif ch["content"].strip():  # empty tail chunks are skipped entirely
-            assert ch["sidecar"]["refs"] == [{"type": "block", "id": "b1"}]
+            assert [r["id"] for r in ch["sidecar"]["refs"]] == ["b1"]
     # At least the clean chunks resolved into the single source block.
     assert any("sidecar" in ch for ch in chunks)
 

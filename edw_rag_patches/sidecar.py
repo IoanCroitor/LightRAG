@@ -517,51 +517,78 @@ def render_structured_answer(
     citation syntax are constructed here, never accepted from the model.
     """
     raw = content.strip()
-    if raw.startswith("```json") and raw.endswith("```"):
-        raw = raw[7:-3].strip()
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    segments = payload.get("segments") if isinstance(payload, dict) else None
-    if not isinstance(segments, list) or not segments:
-        return None
+    payload = None
 
-    normalized: list[dict[str, Any]] = []
-    ordered_evidence: list[str] = []
-    for segment in segments:
-        if not isinstance(segment, dict):
-            return None
-        markdown = segment.get("markdown")
-        evidence_ids = segment.get("evidence_ids")
-        if (
-            not isinstance(markdown, str)
-            or not markdown.strip()
-            or "[^" in markdown
-            or not isinstance(evidence_ids, list)
-            or not all(isinstance(evidence_id, str) for evidence_id in evidence_ids)
-            or any(evidence_id not in evidence_map for evidence_id in evidence_ids)
-        ):
-            return None
-        ids = list(dict.fromkeys(evidence_ids))
-        normalized.append({"markdown": markdown.strip(), "evidence_ids": ids})
-        for evidence_id in ids:
-            if evidence_id not in ordered_evidence:
-                ordered_evidence.append(evidence_id)
+    # 1. Try to extract JSON object safely
+    if "{" in raw and "}" in raw:
+        clean_raw = raw
+        if "```" in clean_raw:
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", clean_raw, re.DOTALL)
+            if match:
+                clean_raw = match.group(1)
+            else:
+                clean_raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", clean_raw, flags=re.MULTILINE).strip()
 
-    display_index = {
-        evidence_id: index + 1
-        for index, evidence_id in enumerate(ordered_evidence)
-    }
-    rendered_segments: list[str] = []
-    for segment in normalized:
-        citations = "".join(
-            _citation_marker(display_index[evidence_id], evidence_map[evidence_id])
-            for evidence_id in segment["evidence_ids"]
-        )
-        rendered_segments.append(f"{segment['markdown']}{citations}")
-    return "\n\n".join(rendered_segments), normalized
+        try:
+            payload = json.loads(clean_raw)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", clean_raw, re.DOTALL)
+            if match:
+                try:
+                    payload = json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    payload = None
 
+    # 2. If payload has segments, validate segments
+    if isinstance(payload, dict) and isinstance(payload.get("segments"), list) and payload["segments"]:
+        segments = payload["segments"]
+        normalized: list[dict[str, Any]] = []
+        ordered_evidence: list[str] = []
+        valid_segments = True
+        for segment in segments:
+            if not isinstance(segment, dict):
+                valid_segments = False
+                break
+            markdown = segment.get("markdown")
+            evidence_ids = segment.get("evidence_ids")
+            if (
+                not isinstance(markdown, str)
+                or not markdown.strip()
+                or "[^" in markdown
+                or not isinstance(evidence_ids, list)
+                or not all(isinstance(evidence_id, str) for evidence_id in evidence_ids)
+                or any(evidence_id not in evidence_map for evidence_id in evidence_ids)
+            ):
+                valid_segments = False
+                break
+            ids = list(dict.fromkeys(evidence_ids))
+            normalized.append({"markdown": markdown.strip(), "evidence_ids": ids})
+            for evidence_id in ids:
+                if evidence_id not in ordered_evidence:
+                    ordered_evidence.append(evidence_id)
+
+        if valid_segments and normalized:
+            display_index = {
+                evidence_id: index + 1
+                for index, evidence_id in enumerate(ordered_evidence)
+            }
+            rendered_segments: list[str] = []
+            for segment in normalized:
+                citations = "".join(
+                    _citation_marker(display_index[evidence_id], evidence_map[evidence_id])
+                    for evidence_id in segment["evidence_ids"]
+                )
+                rendered_segments.append(f"{segment['markdown']}{citations}")
+            return "\n\n".join(rendered_segments), normalized
+
+    # 3. Fallback: If model provided plain text (without invalid hallucinated evidence IDs),
+    # treat plain text as a non-cited segment rather than rejecting the answer outright.
+    if raw and not raw.startswith("{") and "[^" not in raw:
+        plain_text = re.sub(r"^```(?:markdown|text)?\s*|\s*```$", "", raw, flags=re.MULTILINE).strip()
+        if plain_text:
+            return plain_text, [{"markdown": plain_text, "evidence_ids": []}]
+
+    return None
 
 def _citation_marker(index: int, evidence: dict[str, Any]) -> str:
     return (

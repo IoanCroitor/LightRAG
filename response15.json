@@ -1,0 +1,52 @@
+{
+    "response": "The Climate Pledge is a commitment co-founded by Amazon in 2019 to reach net-zero carbon emissions across global operations by 2040[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]. \n\nIt functions as a global coalition designed to bring together companies, drive collective action, and foster cross-sector collaboration toward industry-wide decarbonization. Signatories to the pledge must adhere to three core commitments:\n* Regularly report their greenhouse gas (GHG) emissions.\n* Implement operational changes to actively decarbonize their businesses.\n* Neutralize any remaining emissions with credible offsets.\n\nThrough this framework, the Climate Pledge encourages companies from diverse sectors to engage in shared initiatives and work collectively toward climate mitigation goals.",
+    "references": [],
+    "response_time": 44.469,
+    "citation_highlights": {
+        "version": 1,
+        "sources": {
+            "2024-amazon-sustainability-report_p16.pdf": {
+                "file_path": "2024-amazon-sustainability-report_p16.pdf",
+                "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432-chunk-001",
+                "chunks": [
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]",
+                        "section_id": "root",
+                        "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 146.3572540283203,
+                                    "t": 1061.0493450164795,
+                                    "r": 244.26658630371094,
+                                    "b": 1028.1604957580566
+                                },
+                                "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_0",
+                                "citation_id": "[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 53.50324630737305,
+                                    "t": 931.6702728271484,
+                                    "r": 488.2997741699219,
+                                    "b": 341.98480224609375
+                                },
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_1",
+                                "citation_id": "[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

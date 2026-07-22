@@ -1,0 +1,247 @@
+{
+    "response": "Based on the provided context, advancing industry decarbonization involves catalyzing collective action by sharing expertise and resources developed during corporate decarbonization efforts to address critical technology gaps across various sectors, such as packaging, building materials, and alternative fuels[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]. \n\nKey strategies for driving industry-wide decarbonization include:\n* **Sharing Science-Based Models:** Initiatives like the Amazon Science Exchange provide platforms to share models that help identify the most promising technological solutions and guide decision-making[^2:doc-5501c9cdfc7b318b264a674230dfa432§root¶8fdf278a128b0b78cd58f4ed17696d8c].\n* **Enhancing Data Access:** Programs such as the Amazon Sustainability Data Initiative (ASDI) reduce the cost and time required to acquire and analyze high-value datasets from public and private sectors (e.g., weather, climate, water, agriculture, and air quality), empowering organizations to accelerate sustainability research and real-world progress[^3:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f].\n* **Modernizing Accounting Standards:** Industry decarbonization efforts also involve advocating for updated greenhouse gas accounting guidelines. For example, coalitions like the Emissions First Partnership work to modernize standards for the power sector, while the Advanced and Indirect Mitigation Platform focuses on formalizing standards for market-based emissions reductions[^4:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3].\n\nUltimately, these combined efforts aim to accelerate grid decarbonization to mitigate the worst effects of climate change by supporting high-impact energy projects and driving investments in renewable energy, battery storage, and other mitigation solutions[^5:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f].",
+    "references": [
+        {
+            "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+            "file_path": "2024-amazon-sustainability-report_p16.pdf",
+            "content": null,
+            "provenance": null
+        }
+    ],
+    "response_time": 50.78,
+    "citation_highlights": {
+        "version": 1,
+        "sources": {
+            "2024-amazon-sustainability-report_p16.pdf": {
+                "file_path": "2024-amazon-sustainability-report_p16.pdf",
+                "chunks": [
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]",
+                        "section_id": "root",
+                        "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 146.3572540283203,
+                                    "t": 1061.0493450164795,
+                                    "r": 244.26658630371094,
+                                    "b": 1028.1604957580566
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 53.50324630737305,
+                                    "t": 931.6702728271484,
+                                    "r": 488.2997741699219,
+                                    "b": 341.98480224609375
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^2:doc-5501c9cdfc7b318b264a674230dfa432§root¶8fdf278a128b0b78cd58f4ed17696d8c]",
+                        "section_id": "root",
+                        "block_id": "8fdf278a128b0b78cd58f4ed17696d8c",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 61.93548583984375,
+                                    "t": 314.357177734375,
+                                    "r": 411.2903238932292,
+                                    "b": 255.53572591145837
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^3:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f]",
+                        "section_id": "root",
+                        "block_id": "f1cf628f1d70b816663681d99bab054f",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 60.967742919921875,
+                                    "t": 234.32145182291663,
+                                    "r": 451.9355061848958,
+                                    "b": 185.14290364583337
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^4:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]",
+                        "section_id": "root",
+                        "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 61.93548583984375,
+                                    "t": 170.67862955729163,
+                                    "r": 226.45161946614584,
+                                    "b": 148.5
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 61.93548583984375,
+                                    "t": 133.07145182291663,
+                                    "r": 469.3548583984375,
+                                    "b": 68.46427408854163
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 516.7742106119791,
+                                    "t": 935.3571472167969,
+                                    "r": 930.0,
+                                    "b": 783.0
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 516.7742106119791,
+                                    "t": 769.5,
+                                    "r": 933.8710123697916,
+                                    "b": 616.1785888671875
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 516.7742106119791,
+                                    "t": 599.7857259114583,
+                                    "r": 944.5161946614584,
+                                    "b": 449.357177734375
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 515.8064778645834,
+                                    "t": 431.03572591145837,
+                                    "r": 937.741943359375,
+                                    "b": 280.607177734375
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 515.8064778645834,
+                                    "t": 263.25,
+                                    "r": 928.0645345052084,
+                                    "b": 68.46427408854163
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 973.5484212239584,
+                                    "t": 936.3214314778646,
+                                    "r": 1399.3548177083333,
+                                    "b": 850.5
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 972.5806477864584,
+                                    "t": 833.1428629557291,
+                                    "r": 1392.5807291666667,
+                                    "b": 594.9643147786458
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 971.6129557291666,
+                                    "t": 577.6071370442708,
+                                    "r": 1390.6451822916667,
+                                    "b": 381.857177734375
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^5:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]",
+                        "section_id": "root",
+                        "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 971.6129557291666,
+                                    "t": 366.42854817708337,
+                                    "r": 1277.41943359375,
+                                    "b": 343.28572591145837
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 973.5484212239584,
+                                    "t": 326.89290364583337,
+                                    "r": 1391.6129557291667,
+                                    "b": 264.21427408854163
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 970.6451822916666,
+                                    "t": 246.857177734375,
+                                    "r": 1375.1612955729167,
+                                    "b": 50.14290364583326
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 935.3571472167969,
+                                    "r": 1855.1612955729167,
+                                    "b": 696.2143147786458
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 679.8214518229167,
+                                    "r": 1858.0646158854167,
+                                    "b": 484.07145182291663
+                                }
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 468.64286295572913,
+                                    "r": 1849.3548177083333,
+                                    "b": 206.357177734375
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

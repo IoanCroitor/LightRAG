@@ -445,6 +445,8 @@ class _FwdRag:
     def __init__(self):
         self.doc_status = _FwdDocStatus()
 
+    async def aclear_cache(self):
+        pass
 
 _HEADERS = {"X-API-Key": "test-key"}
 
@@ -764,3 +766,24 @@ def test_insert_text_allows_small_size_for_delimiter_only(monkeypatch):
     )
     assert resp.status_code == 200
     assert captured["chunking"].params["chunk_token_size"] == 50
+
+
+def test_clear_cache_with_and_without_body(monkeypatch):
+    client, _ = _make_client(monkeypatch)
+    # Test POST /documents/clear_cache without body
+    resp_no_body = client.post("/documents/clear_cache", headers=_HEADERS)
+    assert resp_no_body.status_code == 200
+    assert resp_no_body.json() == {
+        "status": "success",
+        "message": "Successfully cleared all cache",
+    }
+
+    # Test POST /documents/clear_cache with body
+    resp_with_body = client.post(
+        "/documents/clear_cache", headers=_HEADERS, json={}
+    )
+    assert resp_with_body.status_code == 200
+    assert resp_with_body.json() == {
+        "status": "success",
+        "message": "Successfully cleared all cache",
+    }

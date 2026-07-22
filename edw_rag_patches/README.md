@@ -404,6 +404,63 @@ print('All patches intact after upgrade')
 
 ---
 
+## Instructions for Cache Deletion
+
+### 1. Via REST API (Recommended if running the server)
+
+Call the `POST /documents/clear_cache` endpoint to clear the in-memory and persistent LLM response cache:
+
+```bash
+curl -X 'POST' \
+  'http://localhost:9621/documents/clear_cache' \
+  -H 'accept: application/json' \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+```
+
+If your server requires an API key, add `-H "X-API-Key: YOUR_API_KEY"`.
+
+### 2. File System Deletion (For File-based KV Storage)
+
+If using default JSON storage (`working_dir="./rag_storage"`), clear or delete the cache file:
+
+```bash
+# Overwrite with empty JSON object
+echo "{}" > ./rag_storage/kv_store_llm_response_cache.json
+
+# Or remove the cache file directly
+rm -f ./rag_storage/kv_store_llm_response_cache.json
+```
+
+If running via Docker Compose:
+
+```bash
+docker exec -it <container_name> rm -f ./rag_storage/kv_store_llm_response_cache.json
+```
+
+### 3. Via Python SDK
+
+In your Python script with an initialized `LightRAG` instance:
+
+```python
+await rag.aclear_cache()
+```
+
+### 4. Database Storage Backends
+
+If `KV_STORAGE` is set to an external database backend:
+
+- **PostgreSQL (`PGKVStorage`)**:
+  ```sql
+  TRUNCATE TABLE LIGHTRAG_LLM_CACHE;
+  ```
+- **Redis (`RedisKVStorage`)**:
+  ```bash
+  redis-cli --eval "return redis.call('del', unpack(redis.call('keys', '*llm_response_cache*')))"
+  ```
+
+---
+
 ## File Reference
 
 | File | Purpose |

@@ -1,0 +1,531 @@
+{
+    "response": "**The Climate Pledge** is a sustainability commitment co-founded by Amazon in 2019 with the overarching goal of reaching net-zero carbon emissions across global operations by 2040[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]. The initiative is designed to unite companies worldwide to drive collective action, foster cross-sector collaboration, and promote industry-wide decarbonization efforts[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84].\n\nTo become a signatory, companies must agree to three core commitments:\n* Regularly report their greenhouse gas (GHG) emissions.\n* Implement operational changes to decarbonize their business processes.\n* Neutralize any remaining emissions using credible, verified offsets[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84].\n\nBy the end of 2024, the pledge had expanded significantly, encompassing 549 companies spanning 46 countries and 60 distinct industries[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶8fdf278a128b0b78cd58f4ed17696d8c]. As the network of signatories grew, the initiative's strategic focus shifted in 2024 toward collaborative efforts, specifically launching joint action projects and small working groups to tackle shared industry challenges[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f]. \n\nThe Climate Pledge supports and accelerates specific decarbonization initiatives to advance its goals:\n* **Science Club Cohort:** A working group focused on addressing sustainability measurement challenges[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f].\n* **Laneshift:** A public-private initiative launched with a $10 million investment to accelerate the transition to zero-tailpipe-emission electric trucks and charging infrastructure across India, Brazil, and Mexico[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3].\n* **Lower-Carbon Concrete Buyers Alliance:** Co-launched to utilize a book-and-claim system that allows companies to claim environmental benefits of lower-carbon concrete in advance of delivery, helping to scale sustainable procurement[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f].\n* **Project JOULE:** An initiative aimed at building a renewable-powered electric vehicle (EV) charging station network in Bengaluru, India, targeting 6.2 MW of renewable capacity and support for 5,500 EVs by 2030[^1:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f].",
+    "references": [],
+    "response_time": 64.894,
+    "citation_highlights": {
+        "version": 1,
+        "sources": {
+            "2024-amazon-sustainability-report_p16.pdf": {
+                "file_path": "2024-amazon-sustainability-report_p16.pdf",
+                "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432-chunk-001",
+                "chunks": [
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]",
+                        "section_id": "root",
+                        "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 146.3572540283203,
+                                    "t": 1061.0493450164795,
+                                    "r": 244.26658630371094,
+                                    "b": 1028.1604957580566
+                                },
+                                "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 53.50324630737305,
+                                    "t": 931.6702728271484,
+                                    "r": 488.2997741699219,
+                                    "b": 341.98480224609375
+                                },
+                                "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_1",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]",
+                        "section_id": "root",
+                        "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 146.3572540283203,
+                                    "t": 1061.0493450164795,
+                                    "r": 244.26658630371094,
+                                    "b": 1028.1604957580566
+                                },
+                                "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 53.50324630737305,
+                                    "t": 931.6702728271484,
+                                    "r": 488.2997741699219,
+                                    "b": 341.98480224609375
+                                },
+                                "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_1",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]",
+                        "section_id": "root",
+                        "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 146.3572540283203,
+                                    "t": 1061.0493450164795,
+                                    "r": 244.26658630371094,
+                                    "b": 1028.1604957580566
+                                },
+                                "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 53.50324630737305,
+                                    "t": 931.6702728271484,
+                                    "r": 488.2997741699219,
+                                    "b": 341.98480224609375
+                                },
+                                "block_id": "287cc6a64ac815058d91f76aa46e9e84",
+                                "start": 0,
+                                "end": 437,
+                                "highlight_id": "hl_287cc6a64ac815058d91f76aa46e9e84_0_437_1",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶287cc6a64ac815058d91f76aa46e9e84]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8fdf278a128b0b78cd58f4ed17696d8c]",
+                        "section_id": "root",
+                        "block_id": "8fdf278a128b0b78cd58f4ed17696d8c",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 61.93548583984375,
+                                    "t": 314.357177734375,
+                                    "r": 411.2903238932292,
+                                    "b": 255.53572591145837
+                                },
+                                "block_id": "8fdf278a128b0b78cd58f4ed17696d8c",
+                                "start": 0,
+                                "end": 55,
+                                "highlight_id": "hl_8fdf278a128b0b78cd58f4ed17696d8c_0_55_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8fdf278a128b0b78cd58f4ed17696d8c]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f]",
+                        "section_id": "root",
+                        "block_id": "f1cf628f1d70b816663681d99bab054f",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 60.967742919921875,
+                                    "t": 234.32145182291663,
+                                    "r": 451.9355061848958,
+                                    "b": 185.14290364583337
+                                },
+                                "block_id": "f1cf628f1d70b816663681d99bab054f",
+                                "start": 0,
+                                "end": 71,
+                                "highlight_id": "hl_f1cf628f1d70b816663681d99bab054f_0_71_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f]",
+                        "section_id": "root",
+                        "block_id": "f1cf628f1d70b816663681d99bab054f",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 60.967742919921875,
+                                    "t": 234.32145182291663,
+                                    "r": 451.9355061848958,
+                                    "b": 185.14290364583337
+                                },
+                                "block_id": "f1cf628f1d70b816663681d99bab054f",
+                                "start": 0,
+                                "end": 71,
+                                "highlight_id": "hl_f1cf628f1d70b816663681d99bab054f_0_71_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶f1cf628f1d70b816663681d99bab054f]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]",
+                        "section_id": "root",
+                        "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 61.93548583984375,
+                                    "t": 170.67862955729163,
+                                    "r": 226.45161946614584,
+                                    "b": 148.5
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 61.93548583984375,
+                                    "t": 133.07145182291663,
+                                    "r": 469.3548583984375,
+                                    "b": 68.46427408854163
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_1",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 516.7742106119791,
+                                    "t": 935.3571472167969,
+                                    "r": 930.0,
+                                    "b": 783.0
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_2",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 516.7742106119791,
+                                    "t": 769.5,
+                                    "r": 933.8710123697916,
+                                    "b": 616.1785888671875
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_3",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 516.7742106119791,
+                                    "t": 599.7857259114583,
+                                    "r": 944.5161946614584,
+                                    "b": 449.357177734375
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_4",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 515.8064778645834,
+                                    "t": 431.03572591145837,
+                                    "r": 937.741943359375,
+                                    "b": 280.607177734375
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_5",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 515.8064778645834,
+                                    "t": 263.25,
+                                    "r": 928.0645345052084,
+                                    "b": 68.46427408854163
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_6",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 973.5484212239584,
+                                    "t": 936.3214314778646,
+                                    "r": 1399.3548177083333,
+                                    "b": 850.5
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_7",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 972.5806477864584,
+                                    "t": 833.1428629557291,
+                                    "r": 1392.5807291666667,
+                                    "b": 594.9643147786458
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_8",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 971.6129557291666,
+                                    "t": 577.6071370442708,
+                                    "r": 1390.6451822916667,
+                                    "b": 381.857177734375
+                                },
+                                "block_id": "1e36da42a35c241336af9252a4b78aa3",
+                                "start": 0,
+                                "end": 3445,
+                                "highlight_id": "hl_1e36da42a35c241336af9252a4b78aa3_0_3445_9",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶1e36da42a35c241336af9252a4b78aa3]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]",
+                        "section_id": "root",
+                        "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 971.6129557291666,
+                                    "t": 366.42854817708337,
+                                    "r": 1277.41943359375,
+                                    "b": 343.28572591145837
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 973.5484212239584,
+                                    "t": 326.89290364583337,
+                                    "r": 1391.6129557291667,
+                                    "b": 264.21427408854163
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_1",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 970.6451822916666,
+                                    "t": 246.857177734375,
+                                    "r": 1375.1612955729167,
+                                    "b": 50.14290364583326
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_2",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 935.3571472167969,
+                                    "r": 1855.1612955729167,
+                                    "b": 696.2143147786458
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_3",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 679.8214518229167,
+                                    "r": 1858.0646158854167,
+                                    "b": 484.07145182291663
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_4",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 468.64286295572913,
+                                    "r": 1849.3548177083333,
+                                    "b": 206.357177734375
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_5",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            }
+                        ]
+                    },
+                    {
+                        "chunk_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "reference_id": "doc-5501c9cdfc7b318b264a674230dfa432",
+                        "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]",
+                        "section_id": "root",
+                        "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                        "highlights": [
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 971.6129557291666,
+                                    "t": 366.42854817708337,
+                                    "r": 1277.41943359375,
+                                    "b": 343.28572591145837
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_0",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 973.5484212239584,
+                                    "t": 326.89290364583337,
+                                    "r": 1391.6129557291667,
+                                    "b": 264.21427408854163
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_1",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 970.6451822916666,
+                                    "t": 246.857177734375,
+                                    "r": 1375.1612955729167,
+                                    "b": 50.14290364583326
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_2",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 935.3571472167969,
+                                    "r": 1855.1612955729167,
+                                    "b": 696.2143147786458
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_3",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 679.8214518229167,
+                                    "r": 1858.0646158854167,
+                                    "b": 484.07145182291663
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_4",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            },
+                            {
+                                "page": 1,
+                                "bbox": {
+                                    "l": 1428.38720703125,
+                                    "t": 468.64286295572913,
+                                    "r": 1849.3548177083333,
+                                    "b": 206.357177734375
+                                },
+                                "block_id": "8334cec0b3da9ad71f5e68ba3a525d3f",
+                                "start": 0,
+                                "end": 2314,
+                                "highlight_id": "hl_8334cec0b3da9ad71f5e68ba3a525d3f_0_2314_5",
+                                "citation_id": "[^doc-5501c9cdfc7b318b264a674230dfa432-chunk-000:doc-5501c9cdfc7b318b264a674230dfa432§root¶8334cec0b3da9ad71f5e68ba3a525d3f]"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

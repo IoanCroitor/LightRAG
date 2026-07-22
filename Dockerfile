@@ -50,6 +50,10 @@ RUN --mount=type=cache,target=/root/.local/share/uv \
 
 # Copy project sources after dependency layer
 COPY lightrag/ ./lightrag/
+# EDW-RAG is a source-tree overlay loaded by ``python -m
+# edw_rag_patches.cli``. Keep it in the image so CI services and deployments
+# run the patched server rather than stock LightRAG.
+COPY edw_rag_patches/ ./edw_rag_patches/
 
 # Include pre-built frontend assets from the previous stage
 COPY --from=frontend-builder /app/lightrag/api/webui ./lightrag/api/webui
@@ -83,6 +87,7 @@ ENV UV_SYSTEM_PYTHON=1
 COPY --from=builder /root/.local /root/.local
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/lightrag ./lightrag
+COPY --from=builder /app/edw_rag_patches ./edw_rag_patches
 COPY pyproject.toml .
 COPY setup.py .
 COPY uv.lock .

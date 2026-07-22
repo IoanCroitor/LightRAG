@@ -1,0 +1,114 @@
+# EDW-RAG patch verification.  The ParseBench job is deliberately opt-in:
+# it mutates the configured LightRAG instance by clearing and re-ingesting its
+# ParseBench corpus, so it must target a disposable evaluation environment.
+
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+  interruptible: true
+  variables:
+    UV_CACHE_DIR: '$CI_PROJECT_DIR/.cache/uv'
+    UV_LINK_MODE: copy
+  cache:
+    key:
+      files:
+        - uv.lock
+      prefix: edw-rag-uv
+    paths:
+      - .cache/uv/
+  before_script:
+    - uv sync --locked --extra test
+
+stages:
+  - lint
+  - test
+  - build
+  - integration
+
+ruff-lint:
+  stage: lint
+  script:
+    - ./edw_rag_patches/ci/run_edw_pipeline.sh lint
+
+patch-tests:
+  stage: test
+  script:
+    - ./edw_rag_patches/ci/run_edw_pipeline.sh patch-tests
+
+build-edw-rag-image:
+  stage: build
+  # Kaniko builds and pushes without requiring a privileged Docker daemon on
+  # the GitLab Runner. The image contains this commit's EDW patch overlay.
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: ['']
+  before_script: []
+  rules:
+    - if: '$RUN_PARSEBENCH == "true"'
+    - when: never
+  script:
+    - mkdir -p /kaniko/.docker
+    - >-
+      printf '{"auths":{"%s":{"username":"%s","password":"%s"}}}'
+      "$CI_REGISTRY" "$CI_REGISTRY_USER" "$CI_REGISTRY_PASSWORD"
+      > /kaniko/.docker/config.json
+    - >-
+      /kaniko/executor
+      --context "$CI_PROJECT_DIR"
+      --dockerfile "$CI_PROJECT_DIR/Dockerfile"
+      --destination "$CI_REGISTRY_IMAGE/edw-rag:$CI_COMMIT_SHA"
+
+parsebench:
+  stage: integration
+  rules:
+    - if: '$RUN_PARSEBENCH == "true"'
+    - when: never
+  # ParseBench clears and repopulates the configured server.  Serialise runs
+  # so two pipelines cannot corrupt the same disposable evaluation workspace.
+  resource_group: 'parsebench-$CI_PROJECT_PATH_SLUG'
+  needs:
+    - build-edw-rag-image
+  services:
+    - name: '$CI_REGISTRY_IMAGE/edw-rag:$CI_COMMIT_SHA'
+      alias: lightrag
+      command:
+        - python
+        - -m
+        - edw_rag_patches.cli
+        - --host
+        - 0.0.0.0
+        - --port
+        - '9621'
+      variables:
+        HOST: '0.0.0.0'
+        PORT: '9621'
+        WORKING_DIR: /app/data/parsebench_rag_storage
+        INPUT_DIR: /app/data/parsebench_inputs
+        PROMPT_DIR: /app/data/prompts
+        LIGHTRAG_PARSER: 'pdf:legacy-R;*:legacy-R'
+        LLM_BINDING: openai
+        LLM_BINDING_HOST: '$LIGHTRAG_LLM_BASE_URL'
+        LLM_BINDING_API_KEY: '$LIGHTRAG_LLM_API_KEY'
+        LLM_MODEL: '$LIGHTRAG_LLM_MODEL'
+        EMBEDDING_BINDING: openai
+        EMBEDDING_BINDING_HOST: '$LIGHTRAG_EMBEDDING_BASE_URL'
+        EMBEDDING_BINDING_API_KEY: '$LIGHTRAG_EMBEDDING_API_KEY'
+        EMBEDDING_BINDING_MODEL: '$LIGHTRAG_EMBEDDING_MODEL'
+        EMBEDDING_DIM: '$LIGHTRAG_EMBEDDING_DIM'
+  variables:
+    # ``lightrag`` is the service alias on GitLab's per-job Docker network;
+    # 127.0.0.1 would address this job container instead of the service.
+    LIGHTRAG_BASE_URL: http://lightrag:9621
+    PARSEBENCH_OUTPUT_DIR: artifacts/parsebench
+  script:
+    - ./edw_rag_patches/ci/run_edw_pipeline.sh parsebench
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - artifacts/parsebench/

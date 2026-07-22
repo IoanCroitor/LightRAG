@@ -308,6 +308,19 @@ See `env.example` for comprehensive template.
 
 ## Code Style
 
+### EDW-RAG Patch Isolation (Mandatory)
+
+- Implement EDW-RAG behavior only through the `edw_rag_patches/` overlay;
+  do not modify files under `lightrag/` for an EDW feature.
+- Put every EDW-RAG regression test under `edw_rag_patches/tests/`. Do not add
+  EDW-specific tests to the upstream `tests/` tree.
+- Keep EDW-specific helpers, CI scripts, and documentation under an
+  `edw_rag_patches/` path and use the `edw_rag_patches` prefix in names and
+  references where a root-level GitLab/Docker integration file is unavoidable.
+- Root `.gitlab-ci.yml` and `Dockerfile` may only contain the minimal wiring
+  needed to build or invoke the EDW patch overlay; they must not change
+  upstream LightRAG runtime behavior.
+
 ### Language
 Comments, backend code, log messages, and Git commit messages in English. Frontend uses i18next for multi-language support.
 

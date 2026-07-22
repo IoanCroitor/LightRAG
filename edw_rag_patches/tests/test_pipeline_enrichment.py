@@ -11,11 +11,11 @@ from lightrag.constants import FULL_DOCS_FORMAT_RAW
 
 import lightrag.pipeline as pipeline_module
 import edw_rag_patches as patches
-from tests.pipeline.test_pipeline_content_reread import (
-    _build_rag,
-    _make_ctx,
-    _make_status_doc,
-    _seed_doc_status,
+from edw_rag_patches.tests.helpers import (
+    build_rag,
+    make_ctx,
+    make_status_doc,
+    seed_doc_status,
 )
 
 
@@ -114,7 +114,7 @@ async def test_pipeline_process_persists_bbox_positions(
 
     monkeypatch.setattr(sys, "argv", ["pytest"])
     patches.apply_edw_rag_patches()
-    rag = _build_rag(tmp_path / "rag")
+    rag = build_rag(tmp_path / "rag")
     await rag.initialize_storages()
     try:
         doc_id = "doc-pipeline-bbox"
@@ -128,11 +128,11 @@ async def test_pipeline_process_persists_bbox_positions(
                 }
             }
         )
-        await _seed_doc_status(rag, doc_id, process_options="!")
-        ctx = await _make_ctx(rag)
+        await seed_doc_status(rag, doc_id, process_options="!")
+        ctx = await make_ctx(rag)
         await rag.process_single_document(
             doc_id=doc_id,
-            status_doc=_make_status_doc(doc_id, content_hash="hash-bbox"),
+            status_doc=make_status_doc(doc_id, content_hash="hash-bbox"),
             parsed_data={
                 "doc_id": doc_id,
                 "file_path": "doc.pdf",
@@ -149,6 +149,7 @@ async def test_pipeline_process_persists_bbox_positions(
             {
                 "page": 2,
                 "bbox": {"l": 10.0, "t": 20.0, "r": 30.0, "b": 40.0},
+                "block_id": "b1",
             }
         ]
     finally:

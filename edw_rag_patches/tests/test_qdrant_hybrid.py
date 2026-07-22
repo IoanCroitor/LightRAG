@@ -154,7 +154,9 @@ async def test_native_bm25_is_added_without_reembedding_dense_vectors(
     monkeypatch.setenv("EDW_QDRANT_HYBRID_ENABLED", "true")
     monkeypatch.setattr(qdrant_hybrid, "_qdrant_point_id", lambda _s, _id: "uuid-1")
     originals = qdrant_hybrid.apply_qdrant_hybrid_patch(
-        _Storage, _Models, SimpleNamespace(info=lambda _m: None)
+        _Storage,
+        _Models,
+        SimpleNamespace(info=lambda *a, **k: None, debug=lambda *a, **k: None),
     )
     storage = _Storage()
 
